@@ -1,0 +1,37 @@
+fileFormatVersion: 2
+guid: 3064bf219c1f35947afb0c7da2c26fb2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - emotionImagePanel: {instanceID: 0}
+  - emotionImage: {instanceID: 0}
+  - questionText: {instanceID: 0}
+  - answerContainer: {instanceID: 0}
+  - answerButtonPrefab: {instanceID: 0}
+  - lumiCorner: {instanceID: 0}
+  - speechBubble: {instanceID: 0}
+  - speechText: {instanceID: 0}
+  - demoSkipBtn: {instanceID: 0}
+  - revealPanel: {instanceID: 0}
+  - revealEmoji: {instanceID: 0}
+  - revealEmotionName: {instanceID: 0}
+  - revealTitle: {instanceID: 0}
+  - heartFull: {instanceID: 0}
+  - heartEmpty: {instanceID: 0}
+  - coinText: {instanceID: 0}
+  - sfxAudio: {instanceID: 0}
+  - correctSfx: {instanceID: 0}
+  - wrongSfx: {instanceID: 0}
+  - musicAudio: {instanceID: 0}
+  - backgroundMusic: {instanceID: 0}
+  - lumiAudio: {instanceID: 0}
+  - lumiDemoIntro: {instanceID: 0}
+  - lumiDemoLook: {instanceID: 0}
+  - lumiDemoReady: {instanceID: 0}
+  - lumiDemoGoodLuck: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

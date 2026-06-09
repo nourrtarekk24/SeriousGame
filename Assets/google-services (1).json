@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1078225864766",
+    "project_id": "lumiplay-c871d",
+    "storage_bucket": "lumiplay-c871d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1078225864766:android:fba254466b28b82f93a96f",
+        "android_client_info": {
+          "package_name": "com.DefaultCompany.SeriousGame"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4fue8p3Jh5QG14cfPHbV1RiDqnlACUJQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

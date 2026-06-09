@@ -1,0 +1,17 @@
+/Library/
+/Temp/
+/Obj/
+/Build/
+/Builds/
+/Logs/
+/UserSettings/
+/.vs/
+.vsconfig
+*.pidb
+*.pdb
+*.suo
+*.tmp
+*.user
+*.csproj
+*.sln
+.DS_Store

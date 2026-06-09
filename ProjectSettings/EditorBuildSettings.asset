@@ -1,0 +1,59 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 0
+    path: Assets/Scenes/SampleScene.unity
+    guid: 8c9cfa26abfee488c85f1582747f6a02
+  - enabled: 1
+    path: Assets/Scenes/LaunchScene.unity
+    guid: 6c465560ed9faeb45aa6a60621f8ff6f
+  - enabled: 1
+    path: Assets/Scenes/HubScene.unity
+    guid: 78bd198377d21f349b02a9013abfc396
+  - enabled: 1
+    path: Assets/Scenes/MG1Scene.unity
+    guid: 8c8d314bac5bff9408240afa9acbc0d4
+  - enabled: 1
+    path: Assets/Scenes/MG2Scene(2).unity
+    guid: f17c84ac3aa70174fbafd14158d7782d
+  - enabled: 1
+    path: Assets/Scenes/LevelSelectMG1.unity
+    guid: 23f4562f41823524c9c98944a7fd8929
+  - enabled: 1
+    path: Assets/Scenes/LevelSelectMG2.unity
+    guid: e263a4df81c975446a9fa99d8ed932c2
+  - enabled: 1
+    path: Assets/Scenes/LevelCompleteScene.unity
+    guid: 7bd93216085bf304d8119bc454fb4e1f
+  - enabled: 1
+    path: Assets/Scenes/LevelLostScene.unity
+    guid: 8a2ef5b83402dd9478b76d57e9db59a8
+  - enabled: 1
+    path: Assets/Scenes/WaitScene.unity
+    guid: 71f301344c40de840bf33a33e20a4750
+  - enabled: 1
+    path: Assets/Scenes/FriendRescueScene.unity
+    guid: 6982fcf964d12d843b32e1867d04f14e
+  - enabled: 1
+    path: Assets/Scenes/EmotionMirrorScene.unity
+    guid: aee8a6d53e12b464eaf1dafa502331ca
+  - enabled: 0
+    path: Assets/Scenes/DashboardScene.unity
+    guid: 84e9b60ea81fda8438094639d6ac077b
+  - enabled: 0
+    path: Assets/Scenes/ShopScene.unity
+    guid: 27ebb21400cc6f145ba079a694109624
+  - enabled: 0
+    path: Assets/Scenes/LevelSelectMG2.unity
+    guid: e263a4df81c975446a9fa99d8ed932c2
+  - enabled: 0
+    path: Assets/Scenes/DashboardScene2.unity
+    guid: e5ae89b5649608f4ca59fcd238b98c68
+  - enabled: 0
+    path: Assets/Scenes/MG2Scene.unity
+    guid: 8512bc3d99929f0469742ef5353d6573
+  m_configObjects: {}

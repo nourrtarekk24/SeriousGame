@@ -1,0 +1,21 @@
+fileFormatVersion: 2
+guid: 28973129a40abbf458e177cde3a3ffab
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - lumiCharacter: {fileID: -927199367670048503, guid: 8f637cc78a3eccf48aae74badab98aee, type: 3}
+  - menuPanel: {instanceID: 0}
+  - coinText: {instanceID: 0}
+  - lumiNameText: {instanceID: 0}
+  - muteBtn: {instanceID: 0}
+  - voiceBtn: {instanceID: 0}
+  - musicOnSprite: {instanceID: 0}
+  - musicOffSprite: {instanceID: 0}
+  - voiceOnSprite: {instanceID: 0}
+  - voiceOffSprite: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
