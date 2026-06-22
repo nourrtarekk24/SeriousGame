@@ -4,11 +4,6 @@ using System.Collections;
 using System.Collections.Generic;
 using ArabicSupport;
 
-/// <summary>
-/// LocalisationManager — attach to every scene except LaunchScene.
-/// ArabicFixer.Fix() shapes and visually reorders Arabic for LTR TMP.
-/// No additional word reversal needed after ArabicFixer.
-/// </summary>
 public class LocalisationManager : MonoBehaviour
 {
     public static LocalisationManager Instance { get; private set; }
@@ -82,20 +77,20 @@ public class LocalisationManager : MonoBehaviour
         { "scene background",               "خلفية"                              },
         { "ON",                             "تشغيل"                              },
         { "OFF",                            "إيقاف"                              },
-        // MG2 scene
+
         { "How is this friend feeling?",    "كَيْفَ يَشْعُرُ هَذَا الصَّدِيق؟"  },
         { "This friend is feeling...",      "هَذَا الصَّدِيقُ يَشْعُر..."       },
         { "Choose your answer",             "اِخْتَرْ إِجَابَتَك"               },
-        // Emotion Mirror scene
+
         { "Choose an emotion to imitate",   "اِخْتَرْ مَشَاعِرًا لِتُقَلِّدَهَا" },
         { "The child will try to make this face.", "سَيُحَاوِلُ الطِّفْلُ صُنْعَ هَذَا الوَجْه." },
         { "Analyse",                        "تَحْلِيل"                           },
         { "Try Again",                      "حَاوِلْ مُجَدَّدًا"                 },
-        // Level select
+
         { "Select a Level",                 "اِخْتَرْ مُسْتَوًى"                 },
         { "Difficulty: Adaptive",           "الصعوبة: تكيفية"                    },
         { "Difficulty: Fixed",              "الصعوبة: ثابتة"                     },
-        // Hub
+
         { "Check Progress",                 "تَحَقَّقْ مِنَ التَّقَدُّم"         },
         { "Play Again",                     "العَبْ مُجَدَّدًا"                  },
         { "Menu",                           "القائمة"                            },
@@ -128,11 +123,9 @@ public class LocalisationManager : MonoBehaviour
             string original = tmp.text.Trim();
             if (string.IsNullOrEmpty(original)) continue;
 
-            // Cache original before first translation
             if (!_originals.ContainsKey(tmp))
                 _originals[tmp] = (tmp.font, original);
 
-            // Exact match
             if (kTranslations.TryGetValue(original, out string ar))
             {
                 tmp.text = PrepareArabic(tmp, ar);
@@ -140,7 +133,6 @@ public class LocalisationManager : MonoBehaviour
                 continue;
             }
 
-            // Partial match (handles "Fruit Finder 🍎" etc.)
             foreach (var kvp in kTranslations)
             {
                 if (original.Contains(kvp.Key))
@@ -155,11 +147,6 @@ public class LocalisationManager : MonoBehaviour
         Debug.Log($"[Localisation] Translated {count} components.");
     }
 
-    /// <summary>
-    /// Shapes Arabic text and sets NotoNaskh font on the component.
-    /// This guarantees the font is correct regardless of what was set before,
-    /// fixing blocks on settings panel labels that use decorative fonts.
-    /// </summary>
     string PrepareArabic(TextMeshProUGUI tmp, string arabic)
     {
         if (GameManager.Instance?.arabicFallbackFont != null)
@@ -184,8 +171,8 @@ public class LocalisationManager : MonoBehaviour
         foreach (var kvp in _originals)
         {
             if (kvp.Key == null) continue;
-            kvp.Key.font = kvp.Value.font; // restore original font (e.g. Howdybun)
-            kvp.Key.text = kvp.Value.text; // restore original English text
+            kvp.Key.font = kvp.Value.font;
+            kvp.Key.text = kvp.Value.text;
         }
         _originals.Clear();
     }

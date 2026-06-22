@@ -7,45 +7,8 @@ using System.Linq;
 using UnityEngine.SceneManagement;
 using DG.Tweening;
 
-/// <summary>
-/// RoundManagerMG1 — Fruit Finder (Memory Garden)
-///
-/// ADAPTIVE DIFFICULTY — complete design
-/// ═══════════════════════════════════════════════════════════
-/// Parameters adapted across ALL rounds AND levels:
-///   • Retention delay   (harder = longer, easier = shorter)
-///   • Grid size         (harder = bigger, easier = smaller)
-///   • Fruits per round  (harder = more,   easier = fewer)
-///
-/// Performance scoring (updates after EVERY round):
-///   Perfect (0 wrong)       → +1
-///   Average (1 wrong)       →  0  (no change)
-///   Poor    (2+ wrong/fail) → -1
-///
-/// Adjustment thresholds:
-///   score ≥ +2  → apply HARDER changes, reset score to 0
-///   score ≤ -1  → apply EASIER changes, reset score to 0
-///
-/// Persistence:
-///   Saved into GameManager (PlayerPrefs) after every round.
-///   Loaded at scene start so state carries across levels.
-///   "Not yet initialised" is represented by -1 in GameManager.
-///
-/// Learning objective constraints (never violated by adaptation):
-///   L1 & L2  R0 & R1:  fruits ∈ [1, 2]
-///   L3 & L4  R0:        fruits ∈ [2, 3]   ← never drops to 1
-///   L3 & L4  R1:        fruits ∈ [1, 2]
-///   L4 both rounds:     orderMatters always true (never adapted away)
-///
-/// Grid bounds:   cols/rows ∈ [2, 4]
-/// Delay bounds:  delay     ∈ [0.5s, 4s]
-/// ═══════════════════════════════════════════════════════════
-/// </summary>
 public class RoundManagerMG1 : MonoBehaviour
 {
-    // ════════════════════════════════════════════════════════════════════════
-    // INSPECTOR FIELDS
-    // ════════════════════════════════════════════════════════════════════════
 
     [Header("Level Settings")]
     public int currentLevel = 0;
@@ -60,12 +23,10 @@ public class RoundManagerMG1 : MonoBehaviour
 
     [Header("Fruit Display — Sequence")]
     public GameObject sequencePanel;
-    // Slot containers — assign the parent box GameObject for each slot.
-    // SetSlot() hides the ENTIRE box (not just the image/label children)
-    // so empty slots never show a blank green box.
-    public GameObject sequenceSlot1;       // parent box for slot 1
-    public GameObject sequenceSlot2;       // parent box for slot 2
-    public GameObject sequenceSlot3;       // parent box for slot 3
+
+    public GameObject sequenceSlot1;
+    public GameObject sequenceSlot2;
+    public GameObject sequenceSlot3;
     public Image sequenceFruitImage1;
     public TextMeshProUGUI sequenceFruitName1;
     public Image sequenceFruitImage2;
@@ -88,7 +49,7 @@ public class RoundManagerMG1 : MonoBehaviour
     [Header("Reveal Panel — Sequence")]
     public GameObject revealPanelSequence;
     public TextMeshProUGUI revealTitleSequence;
-    // Slot containers for the reveal panel — same pattern as sequence panel.
+
     public GameObject revealSlot1;
     public GameObject revealSlot2;
     public GameObject revealSlot3;
@@ -143,56 +104,38 @@ public class RoundManagerMG1 : MonoBehaviour
     public AudioClip lumiDemoRounds;
     public AudioClip lumiDemoGoodLuck;
 
-    // ════════════════════════════════════════════════════════════════════════
-    // STATIC LEVEL CONFIG  (baseline defaults — never mutated at runtime)
-    // ════════════════════════════════════════════════════════════════════════
-
-    // Default fruit counts [level][round] used only when no adaptive state exists yet.
     private static readonly int[][] kBaseFruits = {
-        new int[] { 1, 1 },  // L1
-        new int[] { 1, 1 },  // L2
-        new int[] { 3, 1 },  // L3
-        new int[] { 3, 1 },  // L4
+        new int[] { 1, 1 },
+        new int[] { 1, 1 },
+        new int[] { 3, 1 },
+        new int[] { 3, 1 },
     };
 
-    // Default grid sizes per level.
     private static readonly int[] kBaseGridCols = { 2, 3, 4, 4 };
     private static readonly int[] kBaseGridRows = { 2, 3, 4, 4 };
 
-    // Default delay (seconds) when no adaptive state exists.
     private const float kBaseDelay = 1f;
     private const float kDelayMin = 0.5f;
     private const float kDelayMax = 4f;
     private const float kDelayStep = 0.5f;
 
-    // Grid bounds.
     private const int kGridMin = 2;
     private const int kGridMax = 4;
 
-    // Order config — never adapted, always driven by this table.
     private static readonly bool[][] kOrderMatters = {
         new bool[] { false, false },
         new bool[] { false, false },
         new bool[] { false, false },
-        new bool[] { true,  true  },  // L4: always ordered
+        new bool[] { true,  true  },
     };
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ADAPTIVE STATE  (loaded from / saved to GameManager each round)
-    // ════════════════════════════════════════════════════════════════════════
 
     private float adaptiveDelay;
     private int adaptiveGridCols;
     private int adaptiveGridRows;
-    private int[] adaptiveFruits = new int[2];   // [0] = R0 count, [1] = R1 count
-    private int perfScore;                     // cumulative across rounds & levels
+    private int[] adaptiveFruits = new int[2];
+    private int perfScore;
 
-    // Running log of every change that fired this level session.
     private string changeLog = "None";
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND STATE
-    // ════════════════════════════════════════════════════════════════════════
 
     private int currentRound = 0;
     private int roundsCorrect = 0;
@@ -208,12 +151,6 @@ public class RoundManagerMG1 : MonoBehaviour
     private List<int> usedFruitsThisLevel = new List<int>();
     private List<Sprite> currentPool = new List<Sprite>();
 
-    // ════════════════════════════════════════════════════════════════════════
-    // ARABIC LOCALISATION HELPERS
-    // ════════════════════════════════════════════════════════════════════════
-
-    /// <summary>Returns english or arabic string based on language setting.</summary>
-    // Stores the last raw Arabic string passed through L() — used by ShowLumi for TTS
     private string _lastRawArabic = null;
 
     string L(string english, string arabic)
@@ -232,10 +169,6 @@ public class RoundManagerMG1 : MonoBehaviour
     string FixAr(string arabic)
         => ShapeArabic(arabic);
 
-    /// <summary>
-    /// Shapes Arabic for LTR TMP display.
-    /// Each line is shaped independently so ArabicFixer does not reverse line order.
-    /// </summary>
     string ShapeArabic(string arabic)
     {
         if (string.IsNullOrEmpty(arabic)) return arabic;
@@ -252,7 +185,6 @@ public class RoundManagerMG1 : MonoBehaviour
         return string.Join("\n", lines);
     }
 
-    // Arabic fruit name lookup — maps English name → Arabic with tashkeel
     private static readonly Dictionary<string, string> kArabicFruitNames
         = new Dictionary<string, string>(System.StringComparer.OrdinalIgnoreCase)
     {
@@ -271,29 +203,28 @@ public class RoundManagerMG1 : MonoBehaviour
         { "Pear",        "إِجَّاصَة"        },
         { "Cherry",      "كَرَز"            },
         { "Lemon",       "لَيْمُونَة"       },
-        { "Coconut",     "جَوْزُ الْهِنْد"  },
+        { "Coconut",     "جَوْزُهِنْد"      },
         { "Kiwi",        "كِيوِي"           },
         { "Plum",        "بَرْقُوق"         },
         { "Melon",       "شَمَّام"          },
         { "Guava",       "جُوَافَة"         },
         { "Avocado",     "أَفُوكَادُو"      },
-        { "Blueberry",   "تُوت أَزْرَق"     },
-        { "Blueberries", "تُوت أَزْرَق"     },
-        { "Raspberry",   "تُوت أَحْمَر"     },
-        { "Raspberries",  "تُوت أَحْمَر"    },
+        { "Blueberry",   "عِنَبِيَّة"       },
+        { "Blueberries", "عِنَبِيَّة"       },
+        { "Raspberry",   "تُوتِيَّة"        },
+        { "Raspberries", "تُوتِيَّة"        },
         { "Berry",       "تُوتَة"           },
         { "Berries",     "تُوت"             },
-        { "Blackberry",  "تُوت أَسْوَد"     },
-        { "Blackberries","تُوت أَسْوَد"     },
+        { "Blackberry",  "عُلَّيْقِيَّة"    },
+        { "Blackberries","عُلَّيْقِيَّة"    },
         { "Pomegranate", "رُمَّانَة"        },
         { "Fig",         "تِينَة"           },
         { "Date",        "تَمْرَة"          },
         { "Apricot",     "مِشْمِشَة"        },
         { "Papaya",      "بَابَايَا"        },
-        { "Lime",        "لَيْمُون أَخْضَر" },
+        { "Lime",        "لَيْمُونَة"       },
     };
 
-    /// <summary>Returns fruit name shaped for TMP display.</summary>
     string FruitName(int idx)
     {
         if (idx < 0 || idx >= targetFruitNames.Length) return "";
@@ -303,26 +234,20 @@ public class RoundManagerMG1 : MonoBehaviour
         return en;
     }
 
-    /// <summary>Returns raw unprocessed fruit name for TTS (not shaped by ArabicFixer).</summary>
     string FruitNameRaw(int idx)
     {
         if (idx < 0 || idx >= targetFruitNames.Length) return "";
         string en = targetFruitNames[idx];
         if (GameManager.IsArabic() && kArabicFruitNames.TryGetValue(en, out string ar))
-            return ar; // raw Arabic — no ArabicFixer
+            return ar;
         return en;
     }
 
-    // Arabic correct feedback lines
     private readonly string[] correctFeedbackAr = {
         "أَحْسَنْتَ، لَقَدْ وَجَدْتَهَا.",
         "رَائِع، لَقَدْ تَذَكَّرْتَهَا.",
         "عَمَلٌ رَائِع، أَجَبْتَ بِشَكْلٍ صَحِيح.",
     };
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ANALYTICS
-    // ════════════════════════════════════════════════════════════════════════
 
     private int totalCorrect = 0;
     private int totalWrong = 0;
@@ -330,17 +255,12 @@ public class RoundManagerMG1 : MonoBehaviour
     private int responseCount = 0;
     private float lastGridShownTime = 0f;
 
-    // Per-round records collected during play, flushed to LocalDataManager at level end.
     private List<LocalDataManager.RoundRecord> _roundRecords = new List<LocalDataManager.RoundRecord>();
     private float _roundResponseTimeAccum = 0f;
     private int _roundResponseCount = 0;
     private int _roundCorrectTaps = 0;
     private int _roundWrongTaps = 0;
     private int _roundHints = 0;
-
-    // ════════════════════════════════════════════════════════════════════════
-    // BOOTSTRAP
-    // ════════════════════════════════════════════════════════════════════════
 
     void Awake()
     {
@@ -367,7 +287,7 @@ public class RoundManagerMG1 : MonoBehaviour
         roundsCorrect = 0;
         currentRound = 0;
 
-        LoadAdaptiveState();   // pulls from GameManager (persisted across levels)
+        LoadAdaptiveState();
 
         if (LLMService.Instance != null)
         {
@@ -399,38 +319,22 @@ public class RoundManagerMG1 : MonoBehaviour
         else StartRound();
     }
 
-    // ── Adaptive state persistence ──────────────────────────────────────
-
-    /// <summary>
-    /// Pull adaptive state from GameManager.
-    /// GameManager uses -1 as sentinel meaning "not initialised yet".
-    /// When we see -1 we seed from the level-appropriate base defaults.
-    /// This means:
-    ///   • Very first ever play           → seeds from base values.
-    ///   • After level 1 completes        → carries adapted values into level 2.
-    ///   • Player restarts the app        → loads from PlayerPrefs via GameManager.
-    /// </summary>
     void LoadAdaptiveState()
     {
         GameManager gm = GameManager.Instance;
 
-        // Delay
         adaptiveDelay = (gm != null && gm.mg1AdaptiveDelay >= 0f)
             ? gm.mg1AdaptiveDelay
             : kBaseDelay;
 
-        // Grid cols
         adaptiveGridCols = (gm != null && gm.mg1AdaptiveGridCols >= 0)
             ? gm.mg1AdaptiveGridCols
             : kBaseGridCols[currentLevel];
 
-        // Grid rows
         adaptiveGridRows = (gm != null && gm.mg1AdaptiveGridRows >= 0)
             ? gm.mg1AdaptiveGridRows
             : kBaseGridRows[currentLevel];
 
-        // Per-round fruit counts.
-        // Each round is stored independently so R0 and R1 can adapt separately.
         adaptiveFruits[0] = (gm != null && gm.mg1AdaptiveFruitsR0 >= 0)
             ? gm.mg1AdaptiveFruitsR0
             : kBaseFruits[currentLevel][0];
@@ -439,12 +343,8 @@ public class RoundManagerMG1 : MonoBehaviour
             ? gm.mg1AdaptiveFruitsR1
             : kBaseFruits[currentLevel][1];
 
-        // Performance score carries across levels intentionally —
-        // a child who performed perfectly on L1 should enter L2 already
-        // closer to the "harder" threshold.
         perfScore = (gm != null) ? gm.mg1PerformanceScore : 0;
 
-        // Clamp everything to valid ranges in case of stale saved data.
         adaptiveDelay = Mathf.Clamp(adaptiveDelay, kDelayMin, kDelayMax);
         adaptiveGridCols = Mathf.Clamp(adaptiveGridCols, kGridMin, kGridMax);
         adaptiveGridRows = Mathf.Clamp(adaptiveGridRows, kGridMin, kGridMax);
@@ -457,7 +357,6 @@ public class RoundManagerMG1 : MonoBehaviour
                   " PerfScore:" + perfScore);
     }
 
-    /// <summary>Write current adaptive state back to GameManager (and PlayerPrefs).</summary>
     void SaveAdaptiveState()
     {
         GameManager gm = GameManager.Instance;
@@ -470,9 +369,8 @@ public class RoundManagerMG1 : MonoBehaviour
         gm.mg1AdaptiveFruitsR1 = adaptiveFruits[1];
         gm.mg1PerformanceScore = perfScore;
 
-        gm.SaveData();   // flushes to PlayerPrefs
+        gm.SaveData();
 
-        // Also persist to local JSON so it survives across sessions.
         LocalDataManager.SaveAdaptiveState(new LocalDataManager.AdaptiveStateData
         {
             playerName = gm.lumiName,
@@ -484,10 +382,6 @@ public class RoundManagerMG1 : MonoBehaviour
             perfScore = perfScore
         });
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // HUD
-    // ════════════════════════════════════════════════════════════════════════
 
     void UpdateHUD()
     {
@@ -503,10 +397,6 @@ public class RoundManagerMG1 : MonoBehaviour
                 ? ArabicSupport.ArabicFixer.Fix("الجَوْلَة " + (currentRound + 1) + " مِنْ " + kTotalRounds)
                 : "Round " + (currentRound + 1) + " of " + kTotalRounds;
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // UI HELPERS
-    // ════════════════════════════════════════════════════════════════════════
 
     void HideAllUI()
     {
@@ -534,12 +424,6 @@ public class RoundManagerMG1 : MonoBehaviour
         if (lumiCorner != null) lumiCorner.SetActive(false);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // LUMI SPEECH
-    // ════════════════════════════════════════════════════════════════════════
-
-    // ttsText = raw Arabic (for TTS). message = ArabicFixer-shaped (for display).
-    // If ttsText is null, message is used for TTS (English) or TTS is skipped (Arabic already shaped).
     void ShowLumi(string message, string ttsText = null)
     {
         if (lumiCorner == null) return;
@@ -566,13 +450,11 @@ public class RoundManagerMG1 : MonoBehaviour
 
         if (LLMService.Instance != null)
         {
-            // For Arabic: use raw unprocessed text so TTS gets real Unicode
-            // _lastRawArabic is set by L() just before ShowLumi is called
-            // ttsText override used for LLM-generated messages (already raw)
+
             string speakText = GameManager.IsArabic()
                 ? (ttsText ?? _lastRawArabic ?? message)
                 : message;
-            _lastRawArabic = null; // clear after use
+            _lastRawArabic = null;
             LLMService.Instance.StopSpeaking(lumiAudio);
             StartCoroutine(SpeakAfterFrame(speakText));
         }
@@ -602,15 +484,10 @@ public class RoundManagerMG1 : MonoBehaviour
         "Great job, you got it right.",
     };
 
-    /// <summary>
-    /// Waits until lumiAudio finishes playing, then adds a tail pause.
-    /// Falls back to fixedFallback seconds if audio never starts within 3s.
-    /// Always waits at least minWait seconds regardless of audio length.
-    /// </summary>
     IEnumerator WaitForLumiAudio(float minWait = 1.5f, float fixedFallback = 4f)
     {
-        // Arabic TTS is slower due to server round-trip — give it more time to start
-        float startWait = GameManager.IsArabic() ? Mathf.Max(fixedFallback, 8f) : fixedFallback;
+
+        float startWait = GameManager.IsArabic() ? Mathf.Max(fixedFallback, 6f) : fixedFallback;
 
         float elapsed = 0f;
         while (elapsed < minWait)
@@ -639,10 +516,6 @@ public class RoundManagerMG1 : MonoBehaviour
 
         yield return new WaitForSeconds(0.5f);
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // DEMO
-    // ════════════════════════════════════════════════════════════════════════
 
     public void OnSkipDemoPressed()
     {
@@ -748,22 +621,15 @@ public class RoundManagerMG1 : MonoBehaviour
         first.DOScale(1.2f, 0.3f).SetLoops(4, LoopType.Yoyo);
     }
 
-    // ── Fixed difficulty settings (used when adaptive is OFF) ─────────────
-    // L1: 1 fruit, 2x2, 1s  | L2: 2 fruits, 3x3, 1.5s
-    // L3: 3 fruits, 4x4, 2s | L4: 3 fruits, 4x4, 2.5s
     private static readonly float[] kFixedDelay = { 1f, 1.5f, 2f, 2.5f };
     private static readonly int[] kFixedCols = { 2, 3, 4, 4 };
     private static readonly int[] kFixedRows = { 2, 3, 4, 4 };
     private static readonly int[][] kFixedFruits = {
-        new int[] { 1, 1 },   // L1: R0=1, R1=1
-        new int[] { 2, 2 },   // L2: R0=2, R1=2
-        new int[] { 3, 3 },   // L3: R0=3, R1=3
-        new int[] { 3, 3 },   // L4: R0=3, R1=3
+        new int[] { 1, 1 },
+        new int[] { 2, 2 },
+        new int[] { 3, 3 },
+        new int[] { 3, 3 },
     };
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND MANAGEMENT
-    // ════════════════════════════════════════════════════════════════════════
 
     void StartRound()
     {
@@ -776,11 +642,10 @@ public class RoundManagerMG1 : MonoBehaviour
 
         HideLumiCompletely();
 
-        // ── Fixed or Adaptive difficulty ─────────────────────────────────
         bool isFixed = !GameManager.IsAdaptiveEnabled();
         if (isFixed)
         {
-            // Override adaptive values with fixed settings for this level
+
             adaptiveDelay = kFixedDelay[currentLevel];
             adaptiveGridCols = kFixedCols[currentLevel];
             adaptiveGridRows = kFixedRows[currentLevel];
@@ -788,20 +653,16 @@ public class RoundManagerMG1 : MonoBehaviour
             adaptiveFruits[1] = kFixedFruits[currentLevel][1];
         }
 
-        // Order is determined by static config — never adapted away.
         orderMatters = kOrderMatters[currentLevel][currentRound];
 
-        // Reset per-round tracking counters.
         _roundResponseTimeAccum = 0f;
         _roundResponseCount = 0;
         _roundCorrectTaps = 0;
         _roundWrongTaps = 0;
         _roundHints = 0;
 
-        // Fruit count for this round comes entirely from the adaptive array.
         int fruitsCount = adaptiveFruits[currentRound];
 
-        // Build pool of unused targets for this level session.
         List<int> available = new List<int>();
         for (int i = 0; i < targetFruitSprites.Length; i++)
             if (!usedFruitsThisLevel.Contains(i)) available.Add(i);
@@ -831,18 +692,13 @@ public class RoundManagerMG1 : MonoBehaviour
         StartCoroutine(ShowFruitsThenGrid());
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // FRUIT DISPLAY
-    // ════════════════════════════════════════════════════════════════════════
-
     IEnumerator ShowFruitsThenGrid()
     {
         HideAllUI();
         HideLumiCompletely();
 
-        int n = adaptiveFruits[currentRound];   // actual count shown to child
+        int n = adaptiveFruits[currentRound];
 
-        // Level-specific intro messages that reflect the real adaptive count.
         float readTime = GameManager.IsArabic() ? 4.5f : 3f;
         float readTimeLong = GameManager.IsArabic() ? 5.5f : 3.5f;
 
@@ -875,7 +731,6 @@ public class RoundManagerMG1 : MonoBehaviour
             yield return new WaitForSeconds(0.3f);
         }
 
-        // Display mode driven entirely by adaptive count.
         if (n == 1)
             yield return StartCoroutine(ShowSingleFruit());
         else
@@ -889,7 +744,6 @@ public class RoundManagerMG1 : MonoBehaviour
         yield return new WaitForSeconds(GameManager.IsArabic() ? 3.5f : 2f);
         HideLumiCompletely();
 
-        // ── The retention delay — core adaptive parameter ──
         yield return new WaitForSeconds(adaptiveDelay);
 
         lastGridShownTime = Time.time;
@@ -908,7 +762,6 @@ public class RoundManagerMG1 : MonoBehaviour
         if (fruitImage != null) { fruitImage.sprite = targetFruitSprites[idx]; fruitImage.preserveAspect = true; }
         if (fruitNameText != null) fruitNameText.text = FruitName(idx);
 
-        // Wait for Lumi intro to finish, then speak fruit name
         yield return StartCoroutine(WaitForLumiAudio(1f, 3f));
         if (LLMService.Instance != null)
             LLMService.Instance.SpeakOnSource(FruitNameRaw(idx), lumiAudio);
@@ -924,11 +777,6 @@ public class RoundManagerMG1 : MonoBehaviour
         fruitDisplayPanel.SetActive(false);
     }
 
-    /// <summary>
-    /// Displays the sequence panel showing exactly <paramref name="visibleCount"/> slots.
-    /// Slots beyond visibleCount are hidden so no stale sprite from a previous round is visible.
-    /// This is the fix for the mismatch between displayed and expected fruit counts.
-    /// </summary>
     IEnumerator ShowSequenceFruits(int visibleCount)
     {
         if (sequencePanel == null) yield break;
@@ -943,7 +791,6 @@ public class RoundManagerMG1 : MonoBehaviour
         sequencePanel.transform.DOScale(1f, 0.4f).SetEase(Ease.OutBack);
         yield return new WaitForSeconds(0.5f);
 
-        // Speak each fruit name aloud in sequence
         if (LLMService.Instance != null)
         {
             for (int i = 0; i < visibleCount && i < targetIndices.Count; i++)
@@ -968,21 +815,11 @@ public class RoundManagerMG1 : MonoBehaviour
         sequencePanel.transform.localScale = Vector3.one;
     }
 
-    /// <summary>
-    /// Shows/hides a sequence slot based on whether slotIndex < visibleCount.
-    /// Prevents stale sprites from being visible.
-    /// </summary>
-    /// <summary>
-    /// Shows or hides a complete sequence slot.
-    /// Hides the ENTIRE slot container (the rounded box) when not needed,
-    /// so no empty green box is ever visible.
-    /// </summary>
     void SetSlot(GameObject slotContainer, Image imgComp, TextMeshProUGUI labelComp,
                  int slotIndex, int visibleCount)
     {
         bool show = slotIndex < visibleCount && slotIndex < targetIndices.Count;
 
-        // Hide/show the whole container box — this is the key fix.
         if (slotContainer != null) slotContainer.SetActive(show);
 
         if (imgComp != null)
@@ -995,7 +832,6 @@ public class RoundManagerMG1 : MonoBehaviour
         }
     }
 
-    /// <summary>Same pattern for the reveal panel slots.</summary>
     void SetRevealSlot(GameObject slotContainer, Image imgComp, TextMeshProUGUI labelComp,
                        int slotIndex, int visibleCount)
     {
@@ -1014,10 +850,6 @@ public class RoundManagerMG1 : MonoBehaviour
     }
 
     public void OnNextPressed() { nextPressed = true; }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // GRID
-    // ════════════════════════════════════════════════════════════════════════
 
     void ShowGrid()
     {
@@ -1044,10 +876,8 @@ public class RoundManagerMG1 : MonoBehaviour
 
         int total = adaptiveGridCols * adaptiveGridRows;
 
-        // Seed cells with target indices.
         List<int> cells = new List<int>(targetIndices);
 
-        // Build distractor pool: non-target fruit sprites + explicit distractors.
         currentPool = new List<Sprite>();
         for (int a = 0; a < targetFruitSprites.Length; a++)
             if (!targetIndices.Contains(a)) currentPool.Add(targetFruitSprites[a]);
@@ -1111,10 +941,6 @@ public class RoundManagerMG1 : MonoBehaviour
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // CELL TAP
-    // ════════════════════════════════════════════════════════════════════════
-
     void OnCellTapped(int cellValue, GameObject cell)
     {
         if (!roundActive || cell == null) return;
@@ -1173,10 +999,6 @@ public class RoundManagerMG1 : MonoBehaviour
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // SCAFFOLDING / HINTS
-    // ════════════════════════════════════════════════════════════════════════
-
     void HandleWrongAnswer()
     {
         if (HeartManager.Instance != null && HeartManager.Instance.GetHearts(1) <= 0)
@@ -1193,15 +1015,13 @@ public class RoundManagerMG1 : MonoBehaviour
 
     IEnumerator Attempt1Eliminate()
     {
-        // Hint — NOT an adaptive change, so do NOT write to changeLog here.
+
         lumiCorner?.SetActive(true);
         ShowLumi(L("I can help you with this one.", "يُمْكِنُنِي مُسَاعَدَتُكَ فِي هَذِه."));
         yield return new WaitForSeconds(2f);
         HideSpeechBubble();
         yield return new WaitForSeconds(0.5f);
 
-        // Collect candidates: only cells that are NOT targets at all (distractors only)
-        // Do NOT dim remaining unfound targets OR already correctly found targets
         List<GameObject> candidates = new List<GameObject>();
         foreach (Transform child in gridContainer.transform)
         {
@@ -1216,19 +1036,16 @@ public class RoundManagerMG1 : MonoBehaviour
 
         Shuffle(candidates);
 
-        // Eliminate roughly half but keep at least one distractor visible.
         int elimCount = Mathf.Clamp(candidates.Count / 2, 2, Mathf.Max(1, candidates.Count - 1));
         for (int i = 0; i < elimCount && i < candidates.Count; i++)
         {
             GameObject wc = candidates[i]; if (wc == null) continue;
 
-            // Dim the cell box itself
             Image img = wc.GetComponent<Image>();
             if (img != null) img.DOColor(new Color(0.75f, 0.75f, 0.75f, 0.4f), 0.5f);
 
-            // Also dim all child Images (fruit sprites) inside the cell
             foreach (Image childImg in wc.GetComponentsInChildren<Image>())
-                if (childImg.gameObject != wc) // skip the cell's own Image
+                if (childImg.gameObject != wc)
                     childImg.DOColor(new Color(0.75f, 0.75f, 0.75f, 0.4f), 0.5f);
 
             Button btn = wc.GetComponent<Button>();
@@ -1238,7 +1055,7 @@ public class RoundManagerMG1 : MonoBehaviour
 
     IEnumerator Attempt2MemoryReplay()
     {
-        // Hint — NOT an adaptive change.
+
         roundActive = false;
         if (gridContainer != null) gridContainer.SetActive(false);
 
@@ -1289,14 +1106,10 @@ public class RoundManagerMG1 : MonoBehaviour
         }
 
         yield return new WaitForSeconds(0.5f);
-        lastGridShownTime = Time.time;   // reset timer from replay moment
+        lastGridShownTime = Time.time;
         if (gridContainer != null) gridContainer.SetActive(true);
         roundActive = true;
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND LOST
-    // ════════════════════════════════════════════════════════════════════════
 
     IEnumerator RoundLost()
     {
@@ -1364,10 +1177,6 @@ public class RoundManagerMG1 : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // PERFORMANCE EVALUATION & ADAPTIVE DIFFICULTY
-    // ════════════════════════════════════════════════════════════════════════
-
     IEnumerator DelayThenOnRoundCorrect()
     {
         yield return new WaitForSeconds(0.5f);
@@ -1378,7 +1187,6 @@ public class RoundManagerMG1 : MonoBehaviour
     {
         _roundsSinceMotivation++;
 
-        // Show LLM motivation every 2 correct rounds or after the child struggled
         bool shouldMotivate = _roundsSinceMotivation >= 2 || attemptCount >= 1;
         if (shouldMotivate)
         {
@@ -1410,7 +1218,6 @@ public class RoundManagerMG1 : MonoBehaviour
         EvaluatePerformance(true);
         roundsCorrect++;
 
-        // Request LLM motivational message immediately
         bool struggled = attemptCount >= 2;
         bool perfect = attemptCount == 0;
         var motCtx = new LLMService.MotivationContext
@@ -1420,9 +1227,9 @@ public class RoundManagerMG1 : MonoBehaviour
             recentWrongCount = attemptCount,
             recentCorrectCount = roundsCorrect,
             justSucceededAfterStruggle = struggled,
-            situation = struggled ? "struggling" :   // used hints/had wrong taps then succeeded
-                        perfect ? "perfect" :   // got it right first try
-                                    "improving"       // got it right with minor effort
+            situation = struggled ? "struggling" :
+                        perfect ? "perfect" :
+                                    "improving"
         };
 
         string motivationText = null;
@@ -1431,7 +1238,6 @@ public class RoundManagerMG1 : MonoBehaviour
             LLMService.Instance.GetMotivation(motCtx,
                 msg => { motivationText = msg; motivationReady = true; });
 
-        // Wait up to 6 seconds for LLM — no fallback, we want real LLM messages only
         float waited = 0f;
         while (!motivationReady && waited < 6f)
         {
@@ -1439,26 +1245,24 @@ public class RoundManagerMG1 : MonoBehaviour
             yield return null;
         }
 
-        // Show "this is the correct answer" first
         lumiCorner?.SetActive(true);
         ShowLumi(L("That is the correct answer.", "هَذِهِ هِيَ الإِجَابَةُ الصَّحِيحَة."));
         yield return StartCoroutine(WaitForLumiAudio(1f, 3f));
-        yield return new WaitForSeconds(2f);  // minimum reading time
+        yield return new WaitForSeconds(2f);
         HideSpeechBubble();
         yield return new WaitForSeconds(0.2f);
 
-        // Only show motivation if LLM responded — no hardcoded fallback
         if (motivationReady && !string.IsNullOrEmpty(motivationText))
         {
             lumiCorner?.SetActive(true);
-            // Shape each line independently to prevent line-order reversal
+
             string raw = motivationText;
             string shaped = GameManager.IsArabic()
                 ? ShapeArabicLines(motivationText)
                 : motivationText;
             ShowLumi(shaped, raw);
             yield return StartCoroutine(WaitForLumiAudio(1f, 4f));
-            yield return new WaitForSeconds(2f);  // minimum reading time
+            yield return new WaitForSeconds(2f);
             HideSpeechBubble();
             yield return new WaitForSeconds(0.3f);
         }
@@ -1468,7 +1272,7 @@ public class RoundManagerMG1 : MonoBehaviour
 
     void EvaluatePerformance(bool success)
     {
-        // Skip adaptive evaluation entirely in fixed difficulty mode
+
         if (!GameManager.IsAdaptiveEnabled()) return;
 
         string outcome;
@@ -1490,7 +1294,6 @@ public class RoundManagerMG1 : MonoBehaviour
 
         Debug.Log("[Perf] Round " + (currentRound + 1) + ": " + outcome);
 
-        // Record this round's data.
         float roundAvgRT = _roundResponseCount > 0
             ? _roundResponseTimeAccum / _roundResponseCount : 0f;
 
@@ -1511,7 +1314,6 @@ public class RoundManagerMG1 : MonoBehaviour
 
         ApplyAdaptiveDifficulty();
 
-        // Persist after every round so cross-level carry works.
         SaveAdaptiveState();
     }
 
@@ -1521,21 +1323,18 @@ public class RoundManagerMG1 : MonoBehaviour
 
         if (perfScore >= 2)
         {
-            // ── HARDER ──────────────────────────────────────────────────
-            // Longer delay = harder working memory load.
+
             float prev = adaptiveDelay;
             adaptiveDelay = Mathf.Min(adaptiveDelay + kDelayStep, kDelayMax);
             if (!Mathf.Approximately(adaptiveDelay, prev))
                 changes.Add("Delay " + prev.ToString("F1") + "→" + adaptiveDelay.ToString("F1") + "s");
 
-            // Larger grid = harder visual search.
             int pc = adaptiveGridCols, pr = adaptiveGridRows;
             adaptiveGridCols = Mathf.Min(adaptiveGridCols + 1, kGridMax);
             adaptiveGridRows = Mathf.Min(adaptiveGridRows + 1, kGridMax);
             if (adaptiveGridCols != pc || adaptiveGridRows != pr)
                 changes.Add("Grid " + pc + "x" + pr + "→" + adaptiveGridCols + "x" + adaptiveGridRows);
 
-            // More fruits = higher memory load (per-round, respecting constraints).
             for (int r = 0; r < 2; r++)
             {
                 int pf = adaptiveFruits[r];
@@ -1544,7 +1343,7 @@ public class RoundManagerMG1 : MonoBehaviour
                     changes.Add("R" + r + "Fruits " + pf + "→" + adaptiveFruits[r]);
             }
 
-            perfScore = 0;   // reset so threshold must be earned again
+            perfScore = 0;
 
             Debug.Log("[Adaptive] ▲ HARDER applied. New state —" +
                       " Delay:" + adaptiveDelay + "s" +
@@ -1553,7 +1352,7 @@ public class RoundManagerMG1 : MonoBehaviour
         }
         else if (perfScore <= -1)
         {
-            // ── EASIER ──────────────────────────────────────────────────
+
             float prev = adaptiveDelay;
             adaptiveDelay = Mathf.Max(adaptiveDelay - kDelayStep, kDelayMin);
             if (!Mathf.Approximately(adaptiveDelay, prev))
@@ -1595,29 +1394,21 @@ public class RoundManagerMG1 : MonoBehaviour
         }
     }
 
-    // ── Learning-objective constraints ────────────────────────────────────
-
     int GetMaxFruits(int round)
     {
-        // L1 & L2: up to 2 fruits.
+
         if (currentLevel <= 1) return 2;
-        // L3 & L4 R0: up to 3 fruits.
-        // L3 & L4 R1: up to 2 fruits.
+
         return (round == 0) ? 3 : 2;
     }
 
     int GetMinFruits(int round)
     {
-        // L1 & L2: down to 1 fruit.
+
         if (currentLevel <= 1) return 1;
-        // L3 & L4 R0: minimum 2 (learning objective — must see multiple stimuli).
-        // L3 & L4 R1: down to 1 fruit.
+
         return (round == 0) ? 2 : 1;
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND PROGRESSION
-    // ════════════════════════════════════════════════════════════════════════
 
     void NextRound()
     {
@@ -1633,10 +1424,6 @@ public class RoundManagerMG1 : MonoBehaviour
             Invoke(nameof(StartRound), 0.5f);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // LEVEL END
-    // ════════════════════════════════════════════════════════════════════════
-
     IEnumerator EndLevel()
     {
         usedFruitsThisLevel.Clear();
@@ -1644,7 +1431,6 @@ public class RoundManagerMG1 : MonoBehaviour
 
         float avgRT = responseCount > 0 ? totalResponseTime / responseCount : 0f;
 
-        // ── Save session data locally (no Firebase/internet required) ─────
         string playerName = GameManager.Instance != null
             ? GameManager.Instance.lumiName : "Unknown";
 
@@ -1665,11 +1451,9 @@ public class RoundManagerMG1 : MonoBehaviour
             difficultyMode = GameManager.IsAdaptiveEnabled() ? "adaptive" : "fixed"
         };
 
-        // Track hint1Used and hint2Used from round records
         sessionData.hint1Used = _roundRecords.Sum(r => r.hint1Used);
         sessionData.hint2Used = _roundRecords.Sum(r => r.hint2Used);
 
-        // Add per-round records that were collected during play.
         foreach (var r in _roundRecords) sessionData.rounds.Add(r);
 
         bool passed = roundsCorrect >= kPassRequired;
@@ -1700,8 +1484,6 @@ public class RoundManagerMG1 : MonoBehaviour
                 if (stars > GameManager.Instance.mg1Stars[currentLevel])
                     GameManager.Instance.mg1Stars[currentLevel] = stars;
 
-                // Cap perfScore at 1 between levels — prevents immediate HARDER
-                // firing on the very first round of the next level
                 perfScore = Mathf.Min(perfScore, 1);
                 GameManager.Instance.mg1PerformanceScore = perfScore;
 
@@ -1716,14 +1498,7 @@ public class RoundManagerMG1 : MonoBehaviour
         }
         else
         {
-            // ── On level fail: reset per-round fruit counts to this level's base ──
-            // The child will retry the level, so fruit counts should restart from
-            // the level's base values — not from whatever adaptation reached.
-            // Delay and grid size are NOT reset — they reflect general ability
-            // and should persist even on retry.
-            // perfScore is reset to 0 so the child isn't double-penalised:
-            // the EASIER already fired during the rounds; we don't want another
-            // EASIER to fire immediately at the start of the retry.
+
             adaptiveFruits[0] = kBaseFruits[currentLevel][0];
             adaptiveFruits[1] = kBaseFruits[currentLevel][1];
             perfScore = 0;
@@ -1756,7 +1531,6 @@ public class RoundManagerMG1 : MonoBehaviour
         SceneManager.LoadScene("WaitScene");
     }
 
-    // ── Back button ───────────────────────────────────────────────────────
     public void OnBackPressed()
     {
         SceneManager.LoadScene("LevelSelectMG1");

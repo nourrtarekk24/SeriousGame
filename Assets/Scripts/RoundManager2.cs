@@ -7,31 +7,8 @@ using UnityEngine.SceneManagement;
 using DG.Tweening;
 using Image = UnityEngine.UI.Image;
 
-/// <summary>
-/// RoundManager2 — Emotion Quest (Feelings Forest)
-///
-/// LLM Integration (via LLMService):
-///   Groq → real-time hints (attempt 1 + attempt 2)
-///   Groq → motivational messages (correct / struggling / improving)
-///
-/// Hint trigger conditions:
-///   Attempt 1: first wrong answer → LLM hint targeting the specific facial feature
-///   Attempt 2: second wrong answer → LLM hint with confusion awareness + emotion sound
-///   Attempt 3: round lost → reveal panel
-///
-/// Additional triggers checked before showing hint:
-///   • Response time > kSlowResponseThreshold → hint triggered earlier
-///   • Repeated confusion pattern → hint specifically addresses the pair
-///
-/// Analytics tracked:
-///   correctAnswers, wrongAnswers, responseTime, hintsUsed,
-///   confusionPairs (correctEmotion→selectedEmotion per wrong attempt)
-/// </summary>
 public class RoundManager2 : MonoBehaviour
 {
-    // ════════════════════════════════════════════════════════════════════════
-    // INSPECTOR FIELDS
-    // ════════════════════════════════════════════════════════════════════════
 
     [Header("Level Settings")]
     public int currentLevel = 0;
@@ -84,15 +61,9 @@ public class RoundManager2 : MonoBehaviour
     [Tooltip("Seconds — if the child takes longer than this without answering, show a proactive hint")]
     public float slowResponseThreshold = 8f;
 
-    // ════════════════════════════════════════════════════════════════════════
-    // STATIC DATA
-    // ════════════════════════════════════════════════════════════════════════
-
     private readonly string[] emotionNames = {
         "Happy", "Sad", "Fear", "Angry", "Surprised", "Disgusted", "Neutral"
     };
-
-    // ── Arabic localisation helpers ───────────────────────────────────────
 
     private string _lastRawArabic = null;
 
@@ -132,7 +103,6 @@ public class RoundManager2 : MonoBehaviour
         "سَعِيد", "حَزِين", "خَائِف", "غَاضِب", "مُتَفَاجِئ", "مُشْمَئِزّ", "مُحَايِد"
     };
 
-    /// <summary>Returns emotion name in current language, shaped for TMP display.</summary>
     string EmotionName(int idx)
     {
         if (idx < 0) return "";
@@ -143,26 +113,32 @@ public class RoundManager2 : MonoBehaviour
         return name;
     }
 
-    // Answer options per level (emotion indices shown as buttons)
+    string EmotionNameRaw(int idx)
+    {
+        if (idx < 0) return "";
+        var arr = GameManager.IsArabic() ? emotionNamesAr : emotionNames;
+        return idx < arr.Length ? arr[idx] : "";
+    }
+
     private readonly int[][] levelAnswerOptions = {
-        new int[] { 0, 1 },         // L1 Happy:     Happy, Sad
-        new int[] { 1, 3 },         // L2 Sad:        Sad, Angry
-        new int[] { 2, 4, 0 },      // L3 Fear:       Fear, Surprised, Happy
-        new int[] { 3, 5, 1 },      // L4 Angry:      Angry, Disgusted, Sad
-        new int[] { 4, 2, 0, 3 },   // L5 Surprised:  Surprised, Fear, Happy, Angry
-        new int[] { 5, 3, 1, 0 }    // L6 Disgusted:  Disgusted, Angry, Sad, Happy
+        new int[] { 0, 1 },
+        new int[] { 1, 3 },
+        new int[] { 2, 4, 0 },
+        new int[] { 3, 5, 1 },
+        new int[] { 4, 2, 0, 3 },
+        new int[] { 5, 3, 1, 0 }
     };
 
     private readonly int[] correctEmotionPerLevel = { 0, 1, 2, 3, 4, 5 };
 
     private readonly Color[] emotionColors = {
-        new Color(0.98f, 0.93f, 0.68f, 1f),  // Happy — pastel yellow
-        new Color(0.72f, 0.85f, 0.98f, 1f),  // Sad — pastel blue
-        new Color(0.75f, 0.92f, 0.75f, 1f),  // Fear — pastel green
-        new Color(0.98f, 0.72f, 0.68f, 1f),  // Angry — pastel red
-        new Color(0.88f, 0.78f, 0.95f, 1f),  // Surprised — pastel purple
-        new Color(0.60f, 0.78f, 0.60f, 1f),  // Disgusted — pastel dark green
-        new Color(0.96f, 0.96f, 0.96f, 1f),  // Neutral — near white
+        new Color(0.98f, 0.93f, 0.60f, 1f),
+        new Color(0.72f, 0.85f, 0.98f, 1f),
+        new Color(0.70f, 0.90f, 0.70f, 1f),
+        new Color(0.98f, 0.55f, 0.35f, 1f),
+        new Color(0.65f, 0.92f, 0.88f, 1f),
+        new Color(0.78f, 0.65f, 0.92f, 1f),
+        new Color(0.97f, 0.97f, 0.97f, 1f),
     };
 
     private readonly string[][] situationStoriesMulti = {
@@ -174,7 +150,6 @@ public class RoundManager2 : MonoBehaviour
         new[] { "Think about how you feel\ntasting medicine that is very bitter!", "Think about how you feel\nwhen you smell something really horrible!", "Think about how you feel\nseeing food you really cannot stand!", "Think about how you feel\nstepping in something wet and slimy!" },
     };
 
-    // Fallback situation stories shown while LLM loads (attempt 1)
     private readonly string[] situationStories = {
         "Think about how you feel\non your birthday!",
         "Think about how you feel\nwhen you miss someone.",
@@ -184,7 +159,6 @@ public class RoundManager2 : MonoBehaviour
         "Think about how you feel\nwhen you smell something bad!",
     };
 
-    // Follow-up questions shown after the situational hint
     private readonly string[] followUpPhrases = {
         "Now can you tell how\nthis friend is feeling?",
         "Does that help?\nWhat is this friend feeling?",
@@ -199,9 +173,16 @@ public class RoundManager2 : MonoBehaviour
         "Correct! You could tell\nthis friend feels {0}!",
     };
 
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND STATE
-    // ════════════════════════════════════════════════════════════════════════
+    private readonly string[] correctMessagesAr = {
+        "نَعَم! هَذَا الصَّدِيقُ يَشْعُرُ بِـ {0}!",
+        "صَحِيح! هَذَا الصَّدِيقُ يَشْعُرُ بِـ {0}!",
+        "رَائِع! عَرَفْتَهَا! هَذَا الصَّدِيقُ {0}!",
+        "أَحْسَنْتَ! هَذَا الصَّدِيقُ يَشْعُرُ بِـ {0}!",
+        "صَحِيح! اِسْتَطَعْتَ مَعْرِفَةَ أَنَّ هَذَا الصَّدِيقَ {0}!",
+    };
+
+    string[] correctMessagesRaw =>
+        GameManager.IsArabic() ? correctMessagesAr : correctMessages;
 
     private int correctEmotionIndex = 0;
     private int attemptCount = 0;
@@ -211,14 +192,9 @@ public class RoundManager2 : MonoBehaviour
     private int starsEarned = 0;
     private int _roundsSinceMotivation = 0;
 
-    // Slow-response timer
     private float roundStartTime = 0f;
     private bool slowHintFired = false;
     private Coroutine slowTimerCoroutine = null;
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ANALYTICS & CONFUSION TRACKING
-    // ════════════════════════════════════════════════════════════════════════
 
     private int totalCorrect = 0;
     private int totalWrong = 0;
@@ -226,18 +202,11 @@ public class RoundManager2 : MonoBehaviour
     private int responseCount = 0;
     private int hintsUsed = 0;
 
-    // All wrong selections this level: "correctEmotion→selectedEmotion"
     private List<string> confusionLog = new List<string>();
 
-    // Count per confusion pair across this level session
     private Dictionary<string, int> confusionCounts = new Dictionary<string, int>();
 
-    // Wrong answers accumulated within the current round
     private List<string> wrongThisRound = new List<string>();
-
-    // ════════════════════════════════════════════════════════════════════════
-    // BOOTSTRAP
-    // ════════════════════════════════════════════════════════════════════════
 
     void Awake()
     {
@@ -246,7 +215,6 @@ public class RoundManager2 : MonoBehaviour
         if (HeartManager.Instance == null)
             new GameObject("HeartManager").AddComponent<HeartManager>();
 
-        // Ensure LLMService exists in the scene.
         if (LLMService.Instance == null)
             new GameObject("LLMService").AddComponent<LLMService>();
     }
@@ -300,10 +268,6 @@ public class RoundManager2 : MonoBehaviour
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // HUD
-    // ════════════════════════════════════════════════════════════════════════
-
     void UpdateHUD()
     {
         int hearts = HeartManager.Instance != null ? HeartManager.Instance.GetHearts(2) : 3;
@@ -313,10 +277,6 @@ public class RoundManager2 : MonoBehaviour
         if (coinText != null && GameManager.Instance != null)
             coinText.text = GameManager.Instance.tempCoins.ToString();
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // UI HELPERS
-    // ════════════════════════════════════════════════════════════════════════
 
     void HideAllUI()
     {
@@ -393,7 +353,6 @@ public class RoundManager2 : MonoBehaviour
         if (LLMService.Instance != null)
             LLMService.Instance.SpeakOnSource(message, lumiAudio);
     }
-    // ════════════════════════════════════════════════════════════════════════
 
     public void OnSkipDemoPressed()
     {
@@ -431,8 +390,8 @@ public class RoundManager2 : MonoBehaviour
 
     IEnumerator WaitForLumiAudio(float maxStartWait = 5f, float unused = 0f)
     {
-        // Arabic TTS uses local server — give it more time to start
-        float startWait = GameManager.IsArabic() ? Mathf.Max(maxStartWait, 8f) : maxStartWait;
+
+        float startWait = GameManager.IsArabic() ? Mathf.Max(maxStartWait, 6f) : maxStartWait;
 
         if (lumiAudio == null) { yield return new WaitForSeconds(2f); yield break; }
 
@@ -546,10 +505,6 @@ public class RoundManager2 : MonoBehaviour
         grid.childAlignment = TextAnchor.MiddleCenter;
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND MANAGEMENT
-    // ════════════════════════════════════════════════════════════════════════
-
     void StartRound()
     {
         attemptCount = 0;
@@ -599,14 +554,9 @@ public class RoundManager2 : MonoBehaviour
         roundActive = true;
         roundStartTime = Time.time;
 
-        // Start slow-response timer
         if (slowTimerCoroutine != null) StopCoroutine(slowTimerCoroutine);
         slowTimerCoroutine = StartCoroutine(SlowResponseTimer());
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // SLOW RESPONSE DETECTION
-    // ════════════════════════════════════════════════════════════════════════
 
     IEnumerator SlowResponseTimer()
     {
@@ -614,7 +564,6 @@ public class RoundManager2 : MonoBehaviour
 
         if (!roundActive || slowHintFired) yield break;
 
-        // Child has been looking at the face for too long without answering.
         slowHintFired = true;
         hintUsed = true;
         hintsUsed++;
@@ -635,10 +584,6 @@ public class RoundManager2 : MonoBehaviour
         yield return StartCoroutine(WaitForLumiAudio(2f));
         if (roundActive) HideSpeechBubble();
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ANSWER SELECTION
-    // ════════════════════════════════════════════════════════════════════════
 
     void BuildAnswerOptions()
     {
@@ -692,7 +637,6 @@ public class RoundManager2 : MonoBehaviour
     {
         if (!roundActive) return;
 
-        // Stop slow-response timer.
         if (slowTimerCoroutine != null) { StopCoroutine(slowTimerCoroutine); slowTimerCoroutine = null; }
 
         float responseTime = Time.time - roundStartTime;
@@ -712,7 +656,6 @@ public class RoundManager2 : MonoBehaviour
             GameManager.Instance?.AddTempCoins(!hintUsed ? 20 : 12);
             UpdateHUD();
 
-            // Show LLM motivation every 2 correct rounds or after the child struggled
             _roundsSinceMotivation++;
             bool shouldMotivate = _roundsSinceMotivation >= 2 || attemptCount >= 1;
             if (shouldMotivate)
@@ -730,7 +673,6 @@ public class RoundManager2 : MonoBehaviour
             totalWrong++;
             attemptCount++;
 
-            // Track confusion pair.
             string confusionKey = EmotionName(correctEmotionIndex) + "→" + EmotionName(selectedEmotion);
             confusionLog.Add(confusionKey);
             wrongThisRound.Add(EmotionName(selectedEmotion));
@@ -743,11 +685,15 @@ public class RoundManager2 : MonoBehaviour
     }
     IEnumerator QuickCorrectAndContinue()
     {
-        string defaultMsg = string.Format(
-            correctMessages[Random.Range(0, correctMessages.Length)],
-            EmotionName(correctEmotionIndex));
+        string emotionRaw = EmotionNameRaw(correctEmotionIndex);
+        string rawMsg = string.Format(
+            correctMessagesRaw[Random.Range(0, correctMessagesRaw.Length)],
+            emotionRaw);
+        string displayMsg = GameManager.IsArabic()
+            ? ArabicSupport.ArabicFixer.Fix(rawMsg)
+            : rawMsg;
         lumiCorner?.SetActive(true);
-        ShowLumi(defaultMsg);
+        ShowLumi(displayMsg, rawMsg);
         yield return StartCoroutine(WaitForLumiAudio(1.5f));
         yield return new WaitForSeconds(2f);
         HideSpeechBubble();
@@ -756,17 +702,17 @@ public class RoundManager2 : MonoBehaviour
         OnRoundCorrect();
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // CORRECT — MOTIVATIONAL MESSAGE
-    // ════════════════════════════════════════════════════════════════════════
-
     IEnumerator ShowCorrectWithMotivation()
     {
-        string defaultMsg = string.Format(
-            correctMessages[Random.Range(0, correctMessages.Length)],
-            EmotionName(correctEmotionIndex));
+        string emotionRaw = EmotionNameRaw(correctEmotionIndex);
+        string rawMsg = string.Format(
+            correctMessagesRaw[Random.Range(0, correctMessagesRaw.Length)],
+            emotionRaw);
+        string displayMsg = GameManager.IsArabic()
+            ? ArabicSupport.ArabicFixer.Fix(rawMsg)
+            : rawMsg;
         lumiCorner?.SetActive(true);
-        ShowLumi(defaultMsg);
+        ShowLumi(displayMsg, rawMsg);
 
         bool struggled = attemptCount >= 2;
         bool perfect = attemptCount == 0;
@@ -793,9 +739,10 @@ public class RoundManager2 : MonoBehaviour
 
         if (motivationReady && !string.IsNullOrEmpty(motivationText))
         {
-            ShowLumi(GameManager.IsArabic()
+            string motivationDisplay = GameManager.IsArabic()
                 ? ShapeArabicLines(motivationText)
-                : motivationText);
+                : motivationText;
+            ShowLumi(motivationDisplay, motivationText);
             yield return StartCoroutine(WaitForLumiAudio(1.5f));
             yield return new WaitForSeconds(2f);
             HideSpeechBubble();
@@ -804,10 +751,6 @@ public class RoundManager2 : MonoBehaviour
 
         OnRoundCorrect();
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // WRONG ANSWER HANDLING
-    // ════════════════════════════════════════════════════════════════════════
 
     void HandleWrongAnswer(int selectedEmotion, float responseTime)
     {
@@ -820,20 +763,20 @@ public class RoundManager2 : MonoBehaviour
 
         if (attemptCount == 1)
         {
-            // First wrong answer — situational hint
+
             hintUsed = true;
             hintsUsed++;
             StartCoroutine(Attempt1SituationalHint(selectedEmotion, responseTime));
         }
         else if (attemptCount == 2)
         {
-            // Second wrong answer — social observation hint
+
             hintsUsed++;
             StartCoroutine(Attempt2SocialHint(selectedEmotion, responseTime));
         }
         else
         {
-            // Third wrong answer — level lost
+
             roundActive = false;
             StartCoroutine(Attempt3Reveal());
         }
@@ -850,22 +793,18 @@ public class RoundManager2 : MonoBehaviour
         ShowLumi(L("Here is another clue for you.", "إِلَيْكَ تَلْمِيحًا آخَر."));
         yield return StartCoroutine(WaitForLumiAudio(1f, 3f));
 
-        // Wait up to 8 seconds — no fallback, LLM only
         float waited = 0f;
         while (!hintReady && waited < 8f) { waited += Time.deltaTime; yield return null; }
 
         if (hint != null)
         {
             ShowLumi(GameManager.IsArabic() ? ShapeArabicLines(hint) : hint);
-            // Wait for audio AND enforce minimum 6 seconds reading time
+
             yield return StartCoroutine(WaitForLumiAudio(6f));
             yield return new WaitForSeconds(2f);
         }
         HideSpeechBubble();
     }
-    // ════════════════════════════════════════════════════════════════════════
-    // ATTEMPT 1 — SITUATIONAL HINT
-    // ════════════════════════════════════════════════════════════════════════
 
     IEnumerator Attempt1SituationalHint(int selectedEmotion, float responseTime)
     {
@@ -880,7 +819,6 @@ public class RoundManager2 : MonoBehaviour
         ShowLumi(L("Let me think of a clue for you.", "دَعْنِي أُفَكِّرُ فِي تَلْمِيحٍ لَك."));
         yield return StartCoroutine(WaitForLumiAudio(5f));
 
-        // Wait up to 8 seconds for LLM — no fallback
         float waited = 0f;
         while (!hintReady && waited < 8f) { waited += Time.deltaTime; yield return null; }
         Debug.Log("[Hint] Groq took " + (Time.time - groqStart).ToString("F1") + "s. Ready=" + hintReady);
@@ -888,16 +826,12 @@ public class RoundManager2 : MonoBehaviour
         if (hint != null)
         {
             ShowLumi(GameManager.IsArabic() ? ShapeArabicLines(hint) : hint);
-            // Wait for audio AND enforce minimum 6 seconds reading time
+
             yield return StartCoroutine(WaitForLumiAudio(6f));
             yield return new WaitForSeconds(2f);
         }
         HideSpeechBubble();
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // ATTEMPT 3 — REVEAL PANEL + LEVEL LOST
-    // ════════════════════════════════════════════════════════════════════════
 
     IEnumerator Attempt3Reveal()
     {
@@ -912,10 +846,6 @@ public class RoundManager2 : MonoBehaviour
         yield return new WaitForSeconds(0.5f);
         StartCoroutine(EndLevel(false));
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // BUTTON FEEDBACK
-    // ════════════════════════════════════════════════════════════════════════
 
     void HighlightCorrectButton(int emotionIdx)
     {
@@ -998,10 +928,6 @@ public class RoundManager2 : MonoBehaviour
         yield return new WaitForSeconds(0.3f);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // HINT CONTEXT BUILDER
-    // ════════════════════════════════════════════════════════════════════════
-
     LLMService.HintContext BuildHintContext(string selectedEmotion, float responseTime, string hintType = "situational")
     {
         string confusionPattern = null;
@@ -1020,10 +946,6 @@ public class RoundManager2 : MonoBehaviour
         };
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // ROUND / LEVEL END
-    // ════════════════════════════════════════════════════════════════════════
-
     void OnRoundCorrect()
     {
         StartCoroutine(WaitForBubbleThenEnd());
@@ -1041,7 +963,6 @@ public class RoundManager2 : MonoBehaviour
         HideAllUI();
         HideLumiCompletely();
 
-        // Save session data locally.
         SaveSessionData(passed);
 
         yield return new WaitForSeconds(0.3f);
@@ -1122,7 +1043,6 @@ public class RoundManager2 : MonoBehaviour
         SceneManager.LoadScene("WaitScene");
     }
 
-    // ── Back button ───────────────────────────────────────────────────────
     public void OnBackPressed()
     {
         SceneManager.LoadScene("LevelSelectMG2");

@@ -4,47 +4,16 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
 
-/// <summary>
-/// FirebaseManager — sends session data to Firestore via REST API.
-///
-/// WHY REST instead of the Firebase Unity SDK?
-/// The Firebase Unity SDK requires complex setup and has version conflicts
-/// with many Unity projects. The REST API does the exact same thing with
-/// zero dependencies — just HTTP requests Unity already supports.
-///
-/// HOW IT WORKS:
-/// After every session save, LocalDataManager calls FirebaseManager.
-/// FirebaseManager converts the data to JSON and sends it to Firestore.
-/// The dashboard reads from Firestore automatically.
-///
-/// FIRESTORE STRUCTURE:
-///   players/
-///     {playerName}/           ← one document per child
-///       sessions/             ← subcollection
-///         game1_L0_A1/        ← one document per session attempt
-///         game1_L1_A1/
-///         game2_L0_A1/
-///
-/// SETUP:
-/// 1. Attach this script to a persistent GameObject (e.g. GameManager)
-///    OR call it as a static coroutine from LocalDataManager.
-/// 2. Fill in your Firebase project ID below.
-/// 3. Make sure your Firestore rules are set to allow read/write in test mode.
-/// </summary>
 public class FirebaseManager : MonoBehaviour
 {
     public static FirebaseManager Instance;
 
-    // ── Your Firebase project ID ──────────────────────────────────────
-    // Found in Firebase Console → Project Settings → General → Project ID
     const string PROJECT_ID = "lumiplay-c871d";
 
-    // Firestore REST base URL
     const string FIRESTORE_URL =
         "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID +
         "/databases/(default)/documents";
 
-    // ─────────────────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance == null)
@@ -58,32 +27,16 @@ public class FirebaseManager : MonoBehaviour
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // PUBLIC SEND METHODS
-    // Called from LocalDataManager after every local save.
-    // These are fire-and-forget — if Firebase fails, local save is fine.
-    // ════════════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Call this after SaveGame1Session() in LocalDataManager.
-    /// </summary>
     public void SendGame1Session(LocalDataManager.Game1SessionData data)
     {
         StartCoroutine(SendGame1Coroutine(data));
     }
 
-    /// <summary>
-    /// Call this after SaveGame2Session() in LocalDataManager.
-    /// </summary>
     public void SendGame2Session(LocalDataManager.Game2SessionData data)
     {
         StartCoroutine(SendGame2Coroutine(data));
     }
 
-    /// <summary>
-    /// Call this after saving Emotion Mirror results.
-    /// emResults format: "Happy: correct (87%)|Sad: incorrect → Fear detected (45%)"
-    /// </summary>
     public void SendEmotionMirrorResult(
         string playerName,
         int totalAttempts,
@@ -95,16 +48,11 @@ public class FirebaseManager : MonoBehaviour
             playerName, totalAttempts, correct, emResults, improvements));
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // COROUTINES — build Firestore document and POST it
-    // ════════════════════════════════════════════════════════════════════
-
     IEnumerator SendGame1Coroutine(LocalDataManager.Game1SessionData data)
     {
         string docName = $"game1_L{data.currentLevel}_A{data.attemptNumber}";
         string url = BuildDocumentUrl(data.playerName, docName);
 
-        // Build rounds as a Firestore array of maps
         var roundsSb = new StringBuilder();
         roundsSb.Append("\"arrayValue\":{\"values\":[");
         if (data.rounds != null && data.rounds.Count > 0)
@@ -162,7 +110,6 @@ public class FirebaseManager : MonoBehaviour
         string docName = $"game2_L{data.currentLevel}_A{data.attemptNumber}";
         string url = BuildDocumentUrl(data.playerName, docName);
 
-        // Build confusion pairs as a Firestore array
         var confusionSb = new StringBuilder();
         confusionSb.Append("\"arrayValue\":{\"values\":[");
         if (data.confusionPairs != null && data.confusionPairs.Count > 0)
@@ -196,7 +143,7 @@ public class FirebaseManager : MonoBehaviour
         AddInt(sb, "hint2Used", data.hint2Used); sb.Append(",");
         AddBool(sb, "levelPassed", data.levelPassed); sb.Append(",");
         AddInt(sb, "starsEarned", data.starsEarned); sb.Append(",");
-        // Confusion pairs array
+
         sb.Append($"\"confusionPairs\":{{{confusionSb}}}");
         sb.Append("}}");
 
@@ -208,11 +155,9 @@ public class FirebaseManager : MonoBehaviour
         string playerName, int totalAttempts, int correct,
         string emResults, string improvements)
     {
-        // Ensure player document exists first — critical for new accounts
-        // that have not played Game 1 or 2 yet
+
         yield return EnsurePlayerDocument(playerName);
 
-        // updateMask: only update EM fields, never touch gender or other fields
         string url = $"{FIRESTORE_URL}/players/{Uri.EscapeDataString(SafeId(playerName))}"
                    + "?updateMask.fieldPaths=emTotalAttempts&updateMask.fieldPaths=emCorrect"
                    + "&updateMask.fieldPaths=emResults&updateMask.fieldPaths=emImprovements";
@@ -233,12 +178,6 @@ public class FirebaseManager : MonoBehaviour
         yield return PatchDocument(url, sb.ToString(), "EmotionMirror");
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // ALSO: Register player name in the players collection
-    // This lets the dashboard know which children exist.
-    // Call this once when a new child is created in LaunchScene.
-    // ════════════════════════════════════════════════════════════════════
-
     public void RegisterPlayer(string playerName, string gender)
     {
         StartCoroutine(RegisterPlayerCoroutine(playerName, gender));
@@ -246,7 +185,7 @@ public class FirebaseManager : MonoBehaviour
 
     IEnumerator RegisterPlayerCoroutine(string playerName, string gender)
     {
-        // updateMask ensures we only write these fields — never wipe existing ones
+
         string url = $"{FIRESTORE_URL}/players/{Uri.EscapeDataString(SafeId(playerName))}"
                    + "?updateMask.fieldPaths=playerName&updateMask.fieldPaths=gender&updateMask.fieldPaths=registeredAt";
 
@@ -262,12 +201,6 @@ public class FirebaseManager : MonoBehaviour
 
         yield return PatchDocument(url, sb.ToString(), "RegisterPlayer");
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // HTTP PATCH — creates or updates a Firestore document
-    // PATCH is used because it creates the document if it doesn't exist
-    // and updates it if it does — exactly what we want.
-    // ════════════════════════════════════════════════════════════════════
 
     IEnumerator PatchDocument(string url, string jsonBody, string label)
     {
@@ -286,14 +219,10 @@ public class FirebaseManager : MonoBehaviour
         }
         else
         {
-            // Non-fatal — local save already succeeded
+
             Debug.LogWarning($"[Firebase] ✗ Failed to save {label}: {req.error}\n{req.downloadHandler.text}");
         }
     }
-
-    // ════════════════════════════════════════════════════════════════════
-    // EMOTION MIRROR SESSION
-    // ════════════════════════════════════════════════════════════════════
 
     public void SendEmotionMirrorSession(
         string playerName, string sessionId,
@@ -328,12 +257,6 @@ public class FirebaseManager : MonoBehaviour
         yield return PatchDocument(url, sb.ToString(), "EmotionMirror session");
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // ENSURE PLAYER DOCUMENT EXISTS
-    // Guarantees the parent player document has fields so queries find it.
-    // Called after every session save as a safety guarantee.
-    // ════════════════════════════════════════════════════════════════════
-
     IEnumerator EnsurePlayerDocument(string playerName)
     {
         string url = $"{FIRESTORE_URL}/players/{Uri.EscapeDataString(SafeId(playerName))}";
@@ -347,26 +270,28 @@ public class FirebaseManager : MonoBehaviour
         yield return PatchDocument(url, sb.ToString(), "EnsurePlayer");
     }
 
-    // ════════════════════════════════════════════════════════════════════
-    // HELPERS — build Firestore field value JSON
-    // ════════════════════════════════════════════════════════════════════
-
     string BuildDocumentUrl(string playerName, string docName)
     {
         return $"{FIRESTORE_URL}/players/{Uri.EscapeDataString(SafeId(playerName))}" +
                $"/sessions/{Uri.EscapeDataString(docName)}";
     }
 
-    // SafeId — converts display name to a consistent document ID.
-    // "Ahmed", "ahmed", "AHMED" → "ahmed" (same document every time).
-    // The original typed name is always stored as a field for display.
     string SafeId(string name)
     {
         if (string.IsNullOrEmpty(name)) return "unknown";
-        return name.Trim().ToLower().Replace(" ", "_");
+        string clean = name.Trim().ToLower().Replace(" ", "_");
+
+        string reg = PlayerPrefs.GetString("RegisteredAt_" + name.Trim(), "");
+        if (!string.IsNullOrEmpty(reg))
+        {
+
+            string suffix = reg.Replace("-", "");
+            if (suffix.Length >= 8) suffix = suffix.Substring(0, 8);
+            return clean + "_" + suffix;
+        }
+        return clean;
     }
 
-    // Firestore requires typed field values
     void AddStr(StringBuilder sb, string key, string val)
         => sb.Append($"\"{key}\":{{\"stringValue\":\"{Escape(val)}\"}}");
 
@@ -379,7 +304,6 @@ public class FirebaseManager : MonoBehaviour
     void AddBool(StringBuilder sb, string key, bool val)
         => sb.Append($"\"{key}\":{{\"booleanValue\":{(val ? "true" : "false")}}}");
 
-    // Escape special characters in JSON strings
     string Escape(string s)
     {
         if (string.IsNullOrEmpty(s)) return "";

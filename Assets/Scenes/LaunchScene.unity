@@ -2951,8 +2951,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d4374ba42a5fdd542a4c9e64047dfc4a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  groqApiKey: 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
-  geminiApiKey: AIzaSyDhmGXktPFLm2gM3V3xl_NiupH0vrf9XW8
+  groqApiKey: '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 '
+  geminiApiKey: AQ.Ab8RN6JEFO38NO-u5EIhH8GsYFvbZe5wjAlmeN63f_tHgDc-Xg
   elevenLabsApiKey: 00eddd2bfb9729ce7f73057e14d957b93ee105d37c6acfc469ae9bb18c99cdbe
   lumiVoiceId: pFZP5JQG7iQjIQuC4Bku
   lumiAudioSource: {fileID: 0}

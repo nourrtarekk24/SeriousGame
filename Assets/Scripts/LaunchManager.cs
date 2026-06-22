@@ -4,59 +4,8 @@ using TMPro;
 using UnityEngine.SceneManagement;
 using DG.Tweening;
 
-/// <summary>
-/// LaunchManager — full flow:
-///
-///   Scene opens
-///       ↓
-///   getStartedBtn + welcomeTitle visible (your existing opening screen)
-///       ↓
-///   Child presses Get Started
-///       ↓
-///   getStartedBtn hides → WelcomeScreen pops in
-///   WelcomeScreen has two buttons: "New Child" and "I'm Back!"
-///       ↓                                ↓
-///   NewChildPanel                 ReturningChildPanel
-///   (name + gender + Start)       (name input + "Let's Play!")
-///       ↓                                ↓
-///   Creates fresh profile         Loads existing profile
-///       ↓                                ↓
-///                      HubScene
-///
-/// ─── Unity hierarchy ─────────────────────────────────────────────────────
-///
-///   Canvas
-///   ├── WelcomeTitle          (your existing title — keep as-is)
-///   ├── GetStartedBtn         (your existing button — keep as-is)
-///   ├── WelcomeScreen         (NEW — replaces the old welcomePanel)
-///   │     ├── NewChildBtn       button → "New Child"
-///   │     └── ImBackBtn         button → "I'm Back!"
-///   ├── NewChildPanel         (your old welcomePanel renamed)
-///   │     ├── NameInput
-///   │     ├── BoyBtn
-///   │     ├── GirlBtn
-///   │     ├── BoyIndicator
-///   │     ├── GirlIndicator
-///   │     ├── ValidationText    (NEW — empty TMP text, starts hidden)
-///   │     ├── StartBtn
-///   │     └── BackBtn           (optional)
-///   └── ReturningChildPanel   (NEW panel)
-///         ├── TitleText         "What's your name?"
-///         ├── NameInput
-///         ├── LetsPlayBtn
-///         ├── FeedbackText      empty TMP — shows welcome or error
-///         └── BackBtn
-///
-/// ─── Inspector wiring ────────────────────────────────────────────────────
-/// All panels start INACTIVE in the Inspector.
-/// Start() activates only GetStartedBtn and WelcomeTitle.
-/// ShowScreen() handles all panel switching with a pop animation.
-/// </summary>
 public class LaunchManager : MonoBehaviour
 {
-    // ════════════════════════════════════════════════════════════════════════
-    // INSPECTOR FIELDS
-    // ════════════════════════════════════════════════════════════════════════
 
     [Header("── Opening Screen ─────────────────────────────────")]
     [Tooltip("Your existing title object — shown at startup, hidden after Get Started")]
@@ -93,19 +42,11 @@ public class LaunchManager : MonoBehaviour
     public Color selectedBtnColor = new Color(0.78f, 0.95f, 0.78f, 1f);
     public Color normalBtnColor = new Color(1f, 1f, 1f, 1f);
 
-    // ════════════════════════════════════════════════════════════════════════
-    // PRIVATE STATE
-    // ════════════════════════════════════════════════════════════════════════
-
     int _selectedGender = 0;
     bool _genderSelected = false;
 
     static readonly Color _green = new Color(0.13f, 0.60f, 0.13f);
     static readonly Color _red = new Color(0.80f, 0.15f, 0.15f);
-
-    // ════════════════════════════════════════════════════════════════════════
-    // LIFECYCLE
-    // ════════════════════════════════════════════════════════════════════════
 
     void Awake()
     {
@@ -117,43 +58,26 @@ public class LaunchManager : MonoBehaviour
 
     void Start()
     {
-        // Only the opening screen is visible at startup.
-        // Everything else is hidden until the child interacts.
+
         if (welcomeScreen != null) welcomeScreen.SetActive(false);
         if (newChildPanel != null) newChildPanel.SetActive(false);
         if (returningChildPanel != null) returningChildPanel.SetActive(false);
 
-        // Clear all message texts
         SetValidation("");
         SetFeedback("", _green);
 
-        // Gender buttons start neutral
         SetIndicator(boyIndicator, boyBtn, false);
         SetIndicator(girlIndicator, girlBtn, false);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // OPENING SCREEN — GET STARTED
-    // Wire: GetStartedBtn → OnGetStartedPressed
-    // ════════════════════════════════════════════════════════════════════════
-
-    // Called by the existing Get Started button.
-    // Hides the opening screen and shows the welcome screen with two choices.
     public void OnGetStartedPressed()
     {
-        // Hide the opening screen elements
+
         if (getStartedBtn != null) getStartedBtn.SetActive(false);
         if (welcomeTitle != null) welcomeTitle.SetActive(false);
 
-        // Show the welcome screen (New Child / I'm Back)
         ShowPanel(welcomeScreen);
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // WELCOME SCREEN — TWO CHOICES
-    // Wire: NewChildBtn → OnNewChildPressed
-    //       ImBackBtn   → OnImBackPressed
-    // ════════════════════════════════════════════════════════════════════════
 
     public void OnNewChildPressed()
     {
@@ -172,21 +96,13 @@ public class LaunchManager : MonoBehaviour
         ShowPanel(returningChildPanel);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // NEW CHILD PANEL
-    // Wire: BoyBtn   → OnBoySelected
-    //       GirlBtn  → OnGirlSelected
-    //       StartBtn → OnStartNewChildPressed
-    //       BackBtn  → OnBackToWelcome
-    // ════════════════════════════════════════════════════════════════════════
-
     public void OnBoySelected()
     {
         _selectedGender = 0;
         _genderSelected = true;
         SetIndicator(boyIndicator, boyBtn, true);
         SetIndicator(girlIndicator, girlBtn, false);
-        SetValidation(""); // clear message the moment they make a choice
+        SetValidation("");
     }
 
     public void OnGirlSelected()
@@ -195,14 +111,13 @@ public class LaunchManager : MonoBehaviour
         _genderSelected = true;
         SetIndicator(girlIndicator, girlBtn, true);
         SetIndicator(boyIndicator, boyBtn, false);
-        SetValidation(""); // clear message the moment they make a choice
+        SetValidation("");
     }
 
     public void OnStartNewChildPressed()
     {
         string name = newNameInput != null ? newNameInput.text.Trim() : "";
 
-        // Name is empty
         if (string.IsNullOrEmpty(name))
         {
             newNameInput?.transform.DOShakePosition(0.3f, 8f, 15);
@@ -210,7 +125,6 @@ public class LaunchManager : MonoBehaviour
             return;
         }
 
-        // Gender not chosen yet
         if (!_genderSelected)
         {
             boyBtn?.transform.DOShakePosition(0.3f, 6f, 12);
@@ -219,7 +133,6 @@ public class LaunchManager : MonoBehaviour
             return;
         }
 
-        // Everything valid — clear message and go
         SetValidation("");
         SetIndicator(boyIndicator, boyBtn, false);
         SetIndicator(girlIndicator, girlBtn, false);
@@ -228,13 +141,13 @@ public class LaunchManager : MonoBehaviour
         {
             GameManager.Instance.lumiName = name;
             GameManager.Instance.lumiGender = _selectedGender;
-            // ResetCurrentPlayer resets progress to defaults for a new child
-            // and calls SaveData() which registers their name automatically.
             GameManager.Instance.ResetCurrentPlayer();
         }
 
-        // Register this child in Firebase so the dashboard can find them.
-        // "boy" or "girl" is stored so the dashboard can show the right avatar.
+        string registeredAt = System.DateTime.Now.ToString("yyyy-MM-dd");
+        PlayerPrefs.SetString("RegisteredAt_" + name.Trim(), registeredAt);
+        PlayerPrefs.Save();
+
         string genderLabel = _selectedGender == 0 ? "boy" : "girl";
         if (FirebaseManager.Instance != null)
             FirebaseManager.Instance.RegisterPlayer(name, genderLabel);
@@ -244,18 +157,11 @@ public class LaunchManager : MonoBehaviour
             .OnComplete(() => SceneManager.LoadScene("HubScene"));
     }
 
-    // Back from NewChildPanel → go back to WelcomeScreen (not all the way to GetStarted)
     public void OnBackToWelcome()
     {
         SetValidation("");
         ShowPanel(welcomeScreen);
     }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // RETURNING CHILD PANEL
-    // Wire: LetsPlayBtn → OnReturningChildLoginPressed
-    //       BackBtn     → OnBackToWelcomeFromReturning
-    // ════════════════════════════════════════════════════════════════════════
 
     public void OnReturningChildLoginPressed()
     {
@@ -263,7 +169,6 @@ public class LaunchManager : MonoBehaviour
             ? returningNameInput.text.Trim()
             : "";
 
-        // Name field is empty
         if (string.IsNullOrEmpty(name))
         {
             returningNameInput?.transform.DOShakePosition(0.3f, 8f, 15);
@@ -271,12 +176,11 @@ public class LaunchManager : MonoBehaviour
             return;
         }
 
-        // Check if this name exists on this device
         bool exists = GameManager.GetRegisteredPlayers().Contains(name);
 
         if (!exists)
         {
-            // Name not found — friendly message, no technical language
+
             SetFeedback(
                 "Hmm, we couldn't find that name.\nCheck the spelling or ask your therapist!",
                 _red);
@@ -284,14 +188,11 @@ public class LaunchManager : MonoBehaviour
             return;
         }
 
-        // Name found — show warm welcome message
         SetFeedback("Welcome back, " + name + "! \u2b50", _green);
 
-        // Load their saved gender
         string genderKey = "LumiGender_" + name.Replace(" ", "_");
         int gender = PlayerPrefs.GetInt(genderKey, 0);
 
-        // Set player and load all their saved progress
         if (GameManager.Instance != null)
         {
             GameManager.Instance.lumiName = name;
@@ -299,7 +200,6 @@ public class LaunchManager : MonoBehaviour
             GameManager.Instance.LoadData();
         }
 
-        // Small delay so child can read "Welcome back!" then go to hub
         DOVirtual.DelayedCall(1.2f, () =>
         {
             returningChildPanel.transform
@@ -314,12 +214,6 @@ public class LaunchManager : MonoBehaviour
         ShowPanel(welcomeScreen);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // HELPERS
-    // ════════════════════════════════════════════════════════════════════════
-
-    // Shows one panel with a pop-in animation.
-    // Hides all other panels first.
     void ShowPanel(GameObject target)
     {
         if (welcomeScreen != null) welcomeScreen.SetActive(false);
@@ -334,18 +228,16 @@ public class LaunchManager : MonoBehaviour
 
     void SetIndicator(Image indicator, Button btn, bool selected)
     {
-        // Only the indicator border animates — not the button itself.
-        // This prevents the button from becoming transparent on deselect.
+
         if (indicator != null)
             indicator.DOColor(
                 selected ? selectedBorderColor : normalBorderColor,
                 0.2f);
 
-        // Button gets a subtle scale to show selection — no color change
         if (btn != null)
             btn.transform.DOScale(selected ? 1.08f : 1f, 0.2f).SetEase(Ease.OutBack);
     }
-    // Validation message on NewChildPanel (always red)
+
     void SetValidation(string message)
     {
         if (newChildValidationText == null) return;
@@ -353,7 +245,6 @@ public class LaunchManager : MonoBehaviour
         newChildValidationText.color = _red;
     }
 
-    // Feedback message on ReturningChildPanel (green or red depending on outcome)
     void SetFeedback(string message, Color color)
     {
         if (returningFeedbackText == null) return;

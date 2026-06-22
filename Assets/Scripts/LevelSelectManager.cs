@@ -25,12 +25,10 @@ public class LevelSelectManager : MonoBehaviour
     [Header("Coin Display")]
     public TextMeshProUGUI coinText;
 
-    // MG2 only — labels on levels 5 and 6
     [Header("MG2 Extra Level Labels")]
     public GameObject extraLabel_L5;
     public GameObject extraLabel_L6;
 
-    // ── Adaptive Difficulty Toggle (MG1 only) ─────────────────────────────
     [Header("Adaptive Difficulty Toggle (MG1 only)")]
     [Tooltip("Button that toggles adaptive vs fixed difficulty. MG1 only.")]
     public Button adaptiveToggleBtn;
@@ -91,8 +89,6 @@ public class LevelSelectManager : MonoBehaviour
             coinText.text = GameManager.Instance.totalCoins.ToString();
     }
 
-    // ── Adaptive toggle ───────────────────────────────────────────────────
-
     void UpdateAdaptiveToggle()
     {
         if (adaptiveToggleLabel == null) return;
@@ -114,8 +110,7 @@ public class LevelSelectManager : MonoBehaviour
     {
         bool current = GameManager.IsAdaptiveEnabled();
         GameManager.SetAdaptiveEnabled(!current);
-        // GameManager.SetAdaptiveEnabled calls LoadMG1Progress() internally
-        // which reloads unlocks/stars for the new mode — now refresh the UI
+
         UpdateAdaptiveToggle();
         UpdateAllLevels();
 
@@ -139,7 +134,7 @@ public class LevelSelectManager : MonoBehaviour
 
         if (infoPanelVisible)
         {
-            // Show overlay first
+
             if (adaptiveInfoOverlay != null)
             {
                 adaptiveInfoOverlay.SetActive(true);
@@ -151,7 +146,6 @@ public class LevelSelectManager : MonoBehaviour
                 }
             }
 
-            // Then pop in the panel
             adaptiveInfoPanel.SetActive(true);
             adaptiveInfoPanel.transform.localScale = Vector3.zero;
             adaptiveInfoPanel.transform
@@ -170,7 +164,6 @@ public class LevelSelectManager : MonoBehaviour
     {
         infoPanelVisible = false;
 
-        // Fade out overlay
         if (adaptiveInfoOverlay != null)
         {
             var overlayImg = adaptiveInfoOverlay.GetComponent<Image>();
@@ -181,14 +174,11 @@ public class LevelSelectManager : MonoBehaviour
                 adaptiveInfoOverlay.SetActive(false);
         }
 
-        // Shrink panel
         if (adaptiveInfoPanel != null)
             adaptiveInfoPanel.transform
                 .DOScale(0f, 0.15f)
                 .OnComplete(() => adaptiveInfoPanel.SetActive(false));
     }
-
-    // ── Level display ─────────────────────────────────────────────────────
 
     void UpdateAllLevels()
     {
@@ -215,26 +205,22 @@ public class LevelSelectManager : MonoBehaviour
             if (i >= levelButtons.Length || levelButtons[i] == null) break;
             if (i >= unlocked.Length) break;
 
-            // Lock overlay
             if (i < lockOverlays.Length && lockOverlays[i] != null)
                 lockOverlays[i].SetActive(!unlocked[i]);
 
-            // Button interactable
             levelButtons[i].interactable = unlocked[i];
 
-            // Button color
             Image btnImg = levelButtons[i].GetComponent<Image>();
             if (btnImg != null)
             {
                 if (!unlocked[i])
-                    btnImg.color = new Color(0.75f, 0.75f, 0.75f, 1f); // locked grey
+                    btnImg.color = new Color(0.75f, 0.75f, 0.75f, 1f);
                 else if (i < stars.Length && stars[i] > 0)
-                    btnImg.color = new Color(0.69f, 0.80f, 0.61f, 1f); // played green
+                    btnImg.color = new Color(0.69f, 0.80f, 0.61f, 1f);
                 else
-                    btnImg.color = new Color(0.69f, 0.80f, 0.94f, 1f); // unlocked blue
+                    btnImg.color = new Color(0.69f, 0.80f, 0.94f, 1f);
             }
 
-            // Stars display
             if (i >= allStars.Length || allStars[i] == null) continue;
 
             for (int s = 0; s < allStars[i].Length; s++)

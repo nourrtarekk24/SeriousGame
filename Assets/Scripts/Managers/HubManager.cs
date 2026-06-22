@@ -61,7 +61,6 @@ public class HubManager : MonoBehaviour
     [Tooltip("The Arabic button (arabicbtn)")]
     public Button arabicBtn;
 
-    // Colors for selected/unselected language buttons
     private static readonly Color kLangSelected = new Color(0.18f, 0.49f, 0.20f, 1f);
     private static readonly Color kLangUnselected = new Color(0.85f, 0.85f, 0.85f, 1f);
     private static readonly Color kLangTextSelected = Color.white;
@@ -73,12 +72,11 @@ public class HubManager : MonoBehaviour
 
     private GameObject activeLumi;
 
-    // Speech lines for first visit
     private string[] introLines;
 
     void Start()
     {
-        // Apply gender
+
         LumiGenderHelper.Apply(lumiMale, lumiFemale);
         activeLumi = (GameManager.Instance != null &&
                       GameManager.Instance.lumiGender == 1)
@@ -106,7 +104,6 @@ public class HubManager : MonoBehaviour
         UpdateFriends();
         LoadAudioPrefs();
 
-        // Build intro lines using child's name
         string name = GameManager.Instance != null ?
             GameManager.Instance.lumiName : "friend";
 
@@ -135,7 +132,6 @@ public class HubManager : MonoBehaviour
             };
         }
 
-        // Per-player intro key — each child sees intro once only
         string _introPlayer = GameManager.Instance != null ? GameManager.Instance.lumiName : "default";
         string _introKey = "HubIntroSeen_" + _introPlayer.Trim().Replace(" ", "_");
         bool introSeen = PlayerPrefs.GetInt(_introKey, 0) == 1;
@@ -147,10 +143,6 @@ public class HubManager : MonoBehaviour
         SyncBackgroundButton();
     }
 
-    /// <summary>
-    /// Called on Start and after language switch to ensure all
-    /// language-sensitive UI is in the correct state.
-    /// </summary>
     void RefreshArabicUI()
     {
         bool arabic = GameManager.IsArabic();
@@ -190,8 +182,6 @@ public class HubManager : MonoBehaviour
         SceneManager.LoadScene("EmotionMirrorScene");
     }
 
-    // ── Settings Panel ────────────────────────────────────────────────────
-
     public void OnSettingsPressed()
     {
         if (settingsPanel != null)
@@ -230,8 +220,6 @@ public class HubManager : MonoBehaviour
         if (activeLumi != null) activeLumi.SetActive(true);
     }
 
-    // ── Language Buttons ──────────────────────────────────────────────────
-
     public void OnEnglishPressed()
     {
         if (GameManager.Instance == null) return;
@@ -240,12 +228,12 @@ public class HubManager : MonoBehaviour
         GameManager.Instance.ApplyArabicFallbackFont(false);
         if (LocalisationManager.Instance != null)
             LocalisationManager.Instance.RestoreAll();
-        // Stop any playing Arabic TTS
+
         if (lumiAudio != null && lumiAudio.isPlaying)
             lumiAudio.Stop();
         if (LLMService.Instance != null && lumiAudio != null)
             LLMService.Instance.StopSpeaking(lumiAudio);
-        // Rebuild intro lines in English so next speech shows correctly
+
         string name = GameManager.Instance != null ? GameManager.Instance.lumiName : "friend";
         introLines = new string[] {
             "Hi " + name + "! My name is Lumi.\nWelcome to Sunvale!",
@@ -265,12 +253,12 @@ public class HubManager : MonoBehaviour
         GameManager.SetLanguageArabic(true);
         GameManager.Instance.ApplyArabicFallbackFont(true);
         ApplyLanguage(true);
-        // Stop any playing English TTS
+
         if (lumiAudio != null && lumiAudio.isPlaying)
             lumiAudio.Stop();
         if (LLMService.Instance != null && lumiAudio != null)
             LLMService.Instance.StopSpeaking(lumiAudio);
-        // Rebuild intro lines in Arabic
+
         string name = GameManager.Instance != null ? GameManager.Instance.lumiName : "صَدِيق";
         introLines = new string[] {
             FixAr("مَرْحَباً " + name + "! اِسْمِي لُومِي. أَهْلًا بِكَ فِي سَنْفَيْل!"),
@@ -287,11 +275,10 @@ public class HubManager : MonoBehaviour
 
     void ApplyLanguage(bool arabic)
     {
-        // Stop any playing Lumi speech — TTS is English only
+
         if (lumiAudio != null && lumiAudio.isPlaying)
             lumiAudio.Stop();
 
-        // RTLTMPro handles Arabic rendering — no font swap needed
     }
 
     private string _lastRawArabic = null;
@@ -321,29 +308,26 @@ public class HubManager : MonoBehaviour
     void UpdateLanguageButtons()
     {
         bool arabic = GameManager.IsArabic();
-        SetLanguageButton(englishBtn, !arabic); // English selected when NOT arabic
-        SetLanguageButton(arabicBtn, arabic); // Arabic  selected when arabic
+        SetLanguageButton(englishBtn, !arabic);
+        SetLanguageButton(arabicBtn, arabic);
     }
 
     void SetLanguageButton(Button btn, bool selected)
     {
         if (btn == null) return;
 
-        // Change background color
         var img = btn.GetComponent<Image>();
         if (img != null)
         {
             img.DOColor(selected ? kLangSelected : kLangUnselected, 0.2f);
         }
 
-        // Change text color
         var label = btn.GetComponentInChildren<TextMeshProUGUI>();
         if (label != null)
         {
             label.DOColor(selected ? kLangTextSelected : kLangTextUnselected, 0.2f);
         }
 
-        // Pulse animation on the selected button
         if (selected)
         {
             btn.transform.DOKill();
@@ -357,36 +341,23 @@ public class HubManager : MonoBehaviour
         }
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // STREAMING INTRO — show line immediately, cache next line in parallel
-    // ════════════════════════════════════════════════════════════════════════
-    // HOW IT WORKS:
-    // Line 0 starts downloading immediately in Start().
-    // We show the disclaimer (3s) while line 0 downloads.
-    // By the time the disclaimer fades, line 0 is cached and plays instantly.
-    // While the child reads line 0, line 1 downloads in the background.
-    // By the time they press Next, line 1 is ready. No waiting ever again.
-    // ════════════════════════════════════════════════════════════════════════
-
     IEnumerator PlayIntroStreaming()
     {
-        // Step 1: wait for LLMService (max 3s)
+
         float waited = 0f;
         while (LLMService.Instance == null && waited < 3f)
         { waited += Time.deltaTime; yield return null; }
 
         if (LLMService.Instance == null)
         {
-            // No LLM — play intro text-only without audio
+
             StartCoroutine(PlayIntroTextOnly());
             yield break;
         }
 
-        // Step 2: start downloading line 0 NOW (runs in background)
         _nextLineReady = false;
         LLMService.Instance.PrimeCache(introLines[0], () => _nextLineReady = true);
 
-        // Step 3: show disclaimer while line 0 downloads (~3s covers download time)
         if (disclaimerText != null)
         {
             disclaimerText.gameObject.SetActive(true);
@@ -399,36 +370,32 @@ public class HubManager : MonoBehaviour
         }
         else
         {
-            // No disclaimer — wait for line 0 to cache (max 6s)
+
             float lineWait = 0f;
             while (!_nextLineReady && lineWait < 6f)
             { lineWait += Time.deltaTime; yield return null; }
         }
 
-        // Step 4: show each line — cache next line while child reads current one
         if (introNextBtn != null)
             introNextBtn.SetActive(true);
 
         for (int i = 0; i < introLines.Length; i++)
         {
-            // Wait for current line to be cached (usually already done)
+
             float lineWait = 0f;
             while (!_nextLineReady && lineWait < 5f)
             { lineWait += Time.deltaTime; yield return null; }
 
-            // Show current line — audio plays instantly because it's cached
             nextPressed = false;
             yield return null;
             ShowSpeech(introLines[i]);
 
-            // While child is reading, cache the NEXT line in background
             if (i + 1 < introLines.Length)
             {
                 _nextLineReady = false;
                 LLMService.Instance.PrimeCache(introLines[i + 1], () => _nextLineReady = true);
             }
 
-            // Wait for Next button press
             while (!nextPressed)
                 yield return null;
 
@@ -444,7 +411,6 @@ public class HubManager : MonoBehaviour
         PlayerPrefs.Save();
     }
 
-    // Fallback: no TTS available — show text only, advance on Next press
     IEnumerator PlayIntroTextOnly()
     {
         if (disclaimerText != null)
@@ -515,8 +481,6 @@ public class HubManager : MonoBehaviour
                 : message;
             _lastRawArabic = null;
 
-            // For English: stop previous speech immediately
-            // For Arabic: let previous finish (slow server) — only stop if already playing
             if (!GameManager.IsArabic())
                 LLMService.Instance.StopSpeaking(lumiAudio);
             else if (lumiAudio.isPlaying)
@@ -529,7 +493,7 @@ public class HubManager : MonoBehaviour
     IEnumerator SpeakHubAfterFrame(string text)
     {
         yield return null;
-        yield return null; // two frames for Arabic to settle
+        yield return null;
         if (LLMService.Instance != null && lumiAudio != null)
             LLMService.Instance.SpeakOnSource(text, lumiAudio);
     }
@@ -541,7 +505,6 @@ public class HubManager : MonoBehaviour
         if (introNextBtn != null)
             introNextBtn.SetActive(false);
 
-        // Stop voice when bubble hides
         if (LLMService.Instance != null && lumiAudio != null)
             LLMService.Instance.StopSpeaking(lumiAudio);
 
@@ -693,16 +656,11 @@ public class HubManager : MonoBehaviour
         bool newState = !GameManager.IsBackgroundEnabled();
         GameManager.SetBackgroundEnabled(newState);
 
-        // Update button sprite to reflect new state
         if (backgroundBtn != null)
             backgroundBtn.GetComponent<Image>().sprite =
                 newState ? backgroundOnSprite : backgroundOffSprite;
     }
 
-    /// <summary>
-    /// Syncs the background button sprite with the saved setting.
-    /// Call this from Start() so the button reflects the correct state on load.
-    /// </summary>
     void SyncBackgroundButton()
     {
         if (backgroundBtn == null) return;
