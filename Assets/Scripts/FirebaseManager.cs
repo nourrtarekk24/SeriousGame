@@ -8,7 +8,7 @@ public class FirebaseManager : MonoBehaviour
 {
     public static FirebaseManager Instance;
 
-    const string PROJECT_ID = "lumiplay-c871d";
+    const string PROJECT_ID = "YOUR_FIREBASE_PROJECT_ID";
 
     const string FIRESTORE_URL =
         "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID +

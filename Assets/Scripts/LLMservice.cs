@@ -292,11 +292,8 @@ public class LLMService : MonoBehaviour
     IEnumerator FetchTTS(string text, System.Action<AudioClip> callback)
     {
         if (string.IsNullOrEmpty(elevenLabsApiKey) || elevenLabsApiKey == "YOUR_ELEVENLABS_API_KEY")
-            elevenLabsApiKey = "sk_7a61fc97e57f606c9e4ab71a50ee4b2a616ca676d9105a31";
-
-        if (string.IsNullOrEmpty(elevenLabsApiKey))
         {
-            Debug.LogWarning("[TTS] ElevenLabs API key not set.");
+            Debug.LogWarning("[TTS] ElevenLabs API key not set in Inspector.");
             callback(null);
             yield break;
         }
